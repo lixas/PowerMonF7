@@ -1,0 +1,456 @@
+<style>
+  .scrolable-dialog {
+    height: 80%;
+    overflow: scroll;
+  }
+
+</style>
+<template>
+  <div class="page">
+    <div class="navbar">
+      <div class="navbar-bg"></div>
+      <div class="navbar-inner">
+        <div class="left">
+          <a href="#" class="back icon-only">
+            <i class="icon icon-back"></i>
+          </a>
+        </div>
+        <div class="title">Settings</div>
+        <div class="right">
+          <a href="#" class="link icon-only">
+            <i class="icon icon-star"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="page-content">
+      
+      <div class="list list-outline-ios list-strong-ios list-dividers-ios">
+        <ul>
+        <!-- Screen on -->
+          <li>
+            <div class="disabled item-content">
+              <div class="item-inner">
+                <div class="item-title">
+                  Screen on while connected
+                  <div class="item-footer">Prevents the device from sleeping or dimming while actively communicating with the connected hardware.</div>
+                </div>
+                <div class="item-after">
+                  <label class="toggle toggle-init">
+                    <input type="checkbox" @change=${KeepScreenOnChange} />
+                    <span class="toggle-icon"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </li>
+        <!-- theme chooser-->
+          <li>
+            <a class="item-link smart-select smart-select-init" data-open-in="sheet" data-close-on-select="true" data-sheet-close-link-text="Close">
+              <select name="themeChooser" @change=${themeChooserChange}>
+                <option value="auto">Auto</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+              <div class="item-content">
+                <div class="item-inner">
+                  <div class="item-title">
+                      App Theme
+                      <div class="item-footer">Choose your preferred visual style or let the app match your system settings.</div>
+                  </div>
+                </div>
+              </div>
+            </a>
+          </li>
+        <!--power factor setting-->
+          <li>
+            <a class="disabled item-link smart-select smart-select-init" data-open-in="sheet" data-close-on-select="true" data-sheet-close-link-text="Close">
+              <select name="power" @change=${powerChange}>
+                <option value='measured' data-display-as="Measured">Measured by device</option>
+                <option value='VA' data-display-as="VoltAmp">Volts * Amps</option>
+                <option value='VAPF' data-display-as="VolAmpPf">Volts * Amps * PowerFactor</option>
+              </select>
+              <div class="item-content">
+                <div class="item-inner">
+                  <div class="item-title">
+                      Power calc method
+                      <div class="item-footer">
+                        Choose how power is calculated. If your device does not measure power factor, you can approximate using other values.
+                      </div>
+                  </div>
+                </div>
+              </div>
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div class="block-title">
+        <i class="icon f7-icons">chart_bar_alt_fill</i> Chart
+      </div>
+      <div class="list list-outline-ios list-strong-ios list-dividers-ios">
+        <ul>
+
+<!--          <li>
+            <div class="item-content">
+              <div class="item-inner">
+                <div class="item-title">
+                    Show chart
+                    <div class="item-footer">Show line chart on main screen for historical data, while you are connected to device.</div>
+                </div>
+                <div class="item-after">
+                  <label class="toggle toggle-init">
+                    <input type="checkbox" checked=${settingsVals.chart.show}  @change=${showChartChange} />
+                    <span class="toggle-icon"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </li>
+-->       
+          <li>
+            <a class="disabled item-link smart-select smart-select-init" data-open-in="sheet" data-close-on-select="true" data-sheet-close-link-text="Close">
+              <select name="chartDurationSeconds" @change=${chartDurationSecondsChange}>
+                <option value="60">1 minute</option>
+                <option value="300" selected>5 minutes</option>
+                <option value="600">10 minutes</option>
+                <option value="1800">30 minutes</option>
+                <option value="3600">1 hour</option>
+                <option value="7200">2 hors</option>
+                <option value="21600">6 hours</option>
+                <option value="43200">12 hours</option>
+                <option value="86400">24 hours</option>
+              </select>
+              <div class="item-content">
+                <!-- <div class="item-media"><i class="icon f7-icons">chart</i></div> -->
+                <div class="item-inner">
+                  <div class="item-title">
+                      Chart duration
+                      <div class="item-footer">Choose display window duration. All data is saved to database for later review.</div>
+                  </div>
+                </div>
+              </div>
+            </a>
+          </li>
+
+          <li>
+            <a class="disabled item-link sheet-open" data-sheet=".points-sheet">
+              <!-- <div class="item-media"><i class="icon icon-f7"></i></div> -->
+              <div class="item-inner item-content">
+                <div class="item-title">Number of points
+                  <div class="item-footer">Explain What is this</div>
+                </div>
+                <div class="item-after">${window.settings.chart.points}</div>
+              </div>
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div class="list list-strong-ios list-outline-ios list-dividers-ios">
+        <ul>
+          <li>
+            <a class="disabled item-link popup-open sortable-enable" data-sortable=".sortable" data-popup=".sort-popup">
+              <!-- <div class="item-media"><i class="icon icon-f7"></i></div> -->
+              <div class="item-inner item-content">
+                <div class="item-title">Measurements order and visibility
+                  <div class="item-footer">Select the order of elements that you would like to see or hide irrelevant ones for you dash</div>
+                </div>
+                <div class="item-after">${window.settings.measurements.filter(item => item.checked).length}</div>
+              </div>
+            </a>
+          </li>
+        </ul>
+      </div>
+      
+      <!-- Database Management Section -->
+      <div class="block-title">
+        <i class="icon f7-icons">cylinder_split_1x2</i> Database
+      </div>
+      <div class="list list-outline-ios list-strong-ios list-dividers-ios">
+        <ul>
+          <li>
+            <div class="item-content">
+              <div class="item-inner">
+                <div class="item-title">
+                  Database Info
+                  <div class="item-footer" id="db-info">Loading...</div>
+                </div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <a class="item-link" @click=${clearOldDataClick}>
+              <div class="item-content">
+                <div class="item-media"><i class="icon f7-icons">trash</i></div>
+                <div class="item-inner">
+                  <div class="item-title">Clear Old Data (30+ days)</div>
+                </div>
+              </div>
+            </a>
+          </li>
+          <li>
+            <a class="item-link" @click=${clearAllDataClick}>
+              <div class="item-content">
+                <div class="item-media"><i class="icon f7-icons color-red">trash_fill</i></div>
+                <div class="item-inner">
+                  <div class="item-title" style="color: #ff3b30;">Clear All Database</div>
+                </div>
+              </div>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="list list-strong-ios list-outline-ios list-dividers-ios">
+        <ul>
+          <li>
+            <div class="button button-fill color-red" @click=${ResetDefaultClick}>Reset to defaults</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- sort modal'as -->
+    <div class="popup sort-popup">
+      <div class="page">
+        <div class="navbar">
+          <div class="navbar-bg"></div>
+          <div class="navbar-inner">
+            <div class="title">Select and reorder</div>
+            <div class="right">
+              <a class="link popup-close">Close</a>
+            </div>
+          </div>
+        </div>
+        <div class="page-content">
+            <!-- <div class="block"> <a class="button sortable-toggle" data-sortable=".sortable">Enable sort1</a> -->
+            <div class="list sortable" id="MeasurementsSortList">
+              <ul> 
+                  ${window.settings.measurements.map((item) => $h` 
+                <li>
+                  <div class="item-checkbox item-content">
+                    <input type="checkbox" id=${item.key} checked=${item.checked} />
+                    <!-- <div class="item-media"><i class="icon icon-f7"></i></div> -->
+                    <div class="item-inner">
+                      <div class="item-title">${item.title}</div>
+                      <!-- <div class="item-after">Director</div> -->
+                    </div>
+                  </div>
+                  <div class="sortable-handler"></div>
+                </li> 
+                  `)}
+              </ul>
+            </div>
+          <!-- </div> -->
+        </div>
+      </div>
+    </div>
+    <!-- Range sheet'as -->
+    <div class="sheet-modal points-sheet">
+      <div class="toolbar">
+        <div class="toolbar-inner">
+          <div class="left"></div>
+          <div class="right">
+            <a class="link sheet-close">Close</a>
+          </div>
+        </div>
+      </div>
+      <div class="sheet-modal-inner">
+        <div class="page-content">
+          <div class="block">
+            Choose how many datapoint to show on the chart. 
+          </div>
+              <!-- Range Slider element -->
+              <div style="margin-top: 30px; margin-left: 18px; margin-right: 18px; ">
+                <div class="range-slider range-slider-init range-slider-points" data-min="20" data-max="200" data-label="true" data-step="1" data-value=${window.settings.chart.points} data-scale="true" data-scale-steps="5" data-scale-sub-steps="4"></div>
+              </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+
+<script>
+export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
+    
+    let settingsVals = window.settings;
+  
+    const KeepScreenOnChange = (evt) =>{
+        SettingsManager.set('screenOn', evt.target.value);
+    }
+
+  const showChartChange = (evt) => {
+    settingsVals.chart.show = evt.target.checked;
+  }
+
+  const powerChange = (evt) => {
+    SettingsManager.set('powerCalcMethod', evt.target.value);
+  }
+
+  const themeChooserChange = (evt) => {
+    SettingsManager.set('theme', evt.target.value);
+    window.applyTheme(evt.target.value);
+  }
+
+  const chartDurationSecondsChange = (evt) => {
+    SettingsManager.set('chart.duration', parseInt(evt.target.value));
+  }
+
+  const ResetDefaultClick = () => {
+    $f7.dialog.confirm('Are you sure you want to reset all settings to defaults?', 
+      function () {
+        SettingsManager.reset();
+        window.location.reload();
+      }
+    );
+  }
+  
+
+  
+  const clearOldDataClick = () => {
+    $f7.dialog.confirm('Delete all measurements older than 30 days?', 
+      'Clear Old Data',
+      function () {
+        if (dbManager) {
+          const deleted = dbManager.deleteOlderThan(30);
+          if (deleted) {
+            $f7.toast.create({
+              text: 'Old data cleared successfully',
+              closeTimeout: 2000,
+            }).open();
+            updateDbInfo();
+          } else {
+            $f7.toast.create({
+              text: 'Error clearing old data',
+              closeTimeout: 2000,
+            }).open();
+          }
+        }
+      }
+    );
+  }
+  
+  const clearAllDataClick = () => {
+    $f7.dialog.confirm('Delete ALL measurements from database? This cannot be undone!', 
+      'Clear All Data',
+      function () {
+        if (dbManager) {
+          const cleared = dbManager.clearAll();
+          if (cleared) {
+            $f7.toast.create({
+              text: 'All data cleared successfully',
+              closeTimeout: 2000,
+            }).open();
+            updateDbInfo();
+          } else {
+            $f7.toast.create({
+              text: 'Error clearing data',
+              closeTimeout: 2000,
+            }).open();
+          }
+        }
+      }
+    );
+  }
+  
+  updateDbInfo = async () => {
+   if (dbManager) {
+      const count = await dbManager.getCount();
+      const range = await dbManager.getDataRange();
+      
+      let infoText = `${count.toLocaleString()} measurements stored`;
+      
+      if (range && range.start && range.end) {
+        const startDate = new Date(range.start);
+        const endDate = new Date(range.end);
+        const days = Math.floor((range.end - range.start) / (1000 * 60 * 60 * 24));
+        infoText += `<br>From ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()} (${days} days)`;
+      }
+      
+      const dbInfoEl = document.getElementById('db-info');
+      if (dbInfoEl) {
+        dbInfoEl.innerHTML = infoText;
+      }
+    }
+  }
+  
+    $onMounted(() => {
+      
+      // Update database info
+      setTimeout(async () => {
+        updateDbInfo();
+      }, 500);
+
+      let sortPopup = $f7.popup.create({
+        el: '.sort-popup',
+        swipeToClose: true,
+        push: true,
+        on: {
+          close: function (){
+            let sortedMeasurements = Array()
+            document.querySelector('#MeasurementsSortList ul').childNodes.forEach(element => {
+              for (const mLine of window.settings.measurements ){
+                if (mLine.key === element.querySelector('input').id ) {
+                  sortedMeasurements.push({key: mLine.key,
+                    checked: element.querySelector('input').checked,
+                    title: mLine.title,
+                    idx: mLine.idx,
+                    val: mLine.val})
+                  break
+                }
+              }
+            }); //forach
+            settingsVals.measurements = sortedMeasurements
+            $update()
+          } //close
+        }
+      });
+
+      let rangeSheet = $f7.sheet.create({
+        el: '.points-sheet',
+        swipeToClose: true,
+        push: true,
+        on: {
+          close: function (){
+            $update()
+          }
+        }
+      });
+
+      let rangeSLider = $f7.range.create({
+        el: '.range-slider-points',
+        on: {
+          changed: function(evt, value){
+            window.settings.chart.points=value;
+            $update();
+          }
+        }
+      });
+
+      // After the page is created/mounted:      
+        (function () {
+            const currentTheme = SettingsManager.get("theme");
+            console.log('Current theme from settings:', currentTheme);
+            const selectElement = document.querySelector('select[name="themeChooser"]');
+            if (selectElement) {
+              selectElement.value = currentTheme;
+              // Update Framework7 smart select if needed
+              const smartSelect = $f7.smartSelect.get(selectElement.closest('.smart-select'));
+              if (smartSelect) {
+                smartSelect.setValue(currentTheme);
+              }
+            }
+        })();
+
+    })
+
+    $onBeforeUnmount(()=>{
+      window.settings = settingsVals
+      $f7.emit('SettingsChanged')
+    })
+
+
+    return $render;
+};
+</script>

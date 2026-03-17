@@ -1,0 +1,57 @@
+<template>
+  <div class="page">
+    <div class="navbar">
+      <div class="navbar-bg"></div>
+      <div class="navbar-inner">
+        <div class="left">
+          <a href="#" class="back icon-only">
+            <i class="icon icon-back"></i>
+          </a>
+        </div>
+        <div class="title">About application</div>
+        <div class="right">
+          <a href="#" class="link icon-only">
+            <i class="icon icon-star"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="page-content margin">
+			<p>If you have one of these Atorch power meters, equiped with bluetooth- this application is expected to work.</p>
+			<p>Tested only with first (UD24) and second (S1B).</p>
+			<div class="grid grid-cols-1 medium-grid-cols-2 grid-gap justify-content-center">
+    			<p class="text-align-center">
+    				<img src="Img/Dev_UD24.png" width="80%" />
+    				<img src="Img/Dev_S1B.png" width="80%" />
+    				<img src="Img/Dev_UD18.png" width="80%" />
+    				<img src="Img/Dev_DT24.png" width="80%" />
+				</p>
+			</div>
+			<p>Click  <i class="icon f7-icons">wifi</i> icon in main screen top-right corner and select your device. It may be named UD24, UD18, S1B or something similar, depending on your device. If device is compatible- application should begin showing values on the screen</p>
+			<p>This application also have simulator function in case you do not have device on hand and would like to try it out</p>
+			<p>If you have another Atorch device and would like to help me integrate into this application- please contact me via my website.</p>
+		</div>
+  </div>
+</template>
+
+
+<script>
+export default (props, { $f7 }) => {
+
+    // const helloWorld = () => {
+    //     $f7.dialog.alert('Hello World!', 'My title');
+        
+    //     // Create toast
+    //     let toastCenter = $f7.toast.create({
+    //         text: 'I\'m on center',
+    //         position: 'center',
+    //         closeButton: true,
+    //         closeTimeout: 5000,
+    //     });
+    //     // Open it
+    //     toastCenter.open();
+    // };
+
+    return $render;
+};
+</script>

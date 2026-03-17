@@ -1,0 +1,119 @@
+<template>
+<div class="page">
+    <div class="navbar">
+        <div class="navbar-bg"></div>
+        <div class="navbar-inner">
+            <div class="left">
+                <a href="#" class="back icon-only">
+                    <i class="icon icon-back"></i>
+                </a>
+            </div>
+            <div class="title">Details</div>
+            <!--<div class="right">-->
+            <!--    <i class="icon f7-icons">doc_plaintext</i>-->
+            <!--</div>-->
+        </div>
+    </div>
+    <div class="page-content margin">
+        Device Type Detected: ${BLEParser.getDeviceTypeDescription()}
+		<div class="data-table">
+            <table>
+                <thead><tr>
+                    <th class="label-cell"> </th>
+                    <th class="label-cell">Measurement</th>
+                    <th class="numeric-cell">Value</th>
+                    <th class="text-cell">Unit</th>
+                </tr></thead>
+                <tbody>
+                    ${window.settings.measurements.map((item) => $h`
+                    <tr id="Measurement-${item.key}">
+                        <td class="label-cell"><i class="icon f7-icons">${item.icon}</i></td>
+                        <td class="label-cell">${item.title}</td>
+                        <td class="numeric-cell">0</td>
+                        <td class="text-cell">
+                            ${item.val[item.idx]}
+                            
+                            <!--${(item.val.length>1) ? $h`-->
+                            <!--    <font color="red">^</font>-->
+                            <!--` : ''}-->
+                        </td>
+                    </tr>
+                    `)}
+                </tbody>
+                <tfoot><tr>
+                    <td colspan="4">* DLV- Data Line Voltage</td>
+                </tr></tfoot>
+            </table>
+            <br />
+            <!--<font color="red">^</font> Longtap toggles between units without affecting the actual measurements. -->
+            <!--Your preference will be remembered for future sessions.-->
+
+            <div class="grid grid-cols-1 grid-gap">
+                <div>
+                    <button id="btnReset" class="button button-tonal disabled">Reset measurement</button>
+                </div>
+            </div>
+            <br /><br />
+        </div>
+    </div>
+</div>
+</template>
+
+<script>
+
+export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount }) => {
+
+    $onMounted(() => {
+        
+        console.log("BLEParser.getDeviceTypeDescription", BLEParser.getDeviceTypeDescription())
+        
+        if(stateBleConnected)
+            $$("#btnReset").removeClass("disabled")
+        else
+            $$("#btnReset").addClass("disabled")
+        
+        F7Evt.on("EvtBleDataAvailable", function(page) {
+            Object.entries(page).forEach(entry => {
+                const [key, value] = entry;
+                if(document.querySelector('#Measurement-'+ key +'>td:nth-child(3)'))
+                    document.querySelector('#Measurement-'+ key +'>td:nth-child(3)').innerText = value
+            });
+        })
+        
+        $$('#btnReset').on('click', () => {
+            $f7.actions.create({ buttons: [
+                [// First Group
+                    {
+                        text: 'Select measurement to reset',
+                        label: true
+                    }, {
+                        text: 'Time',
+                        icon: '<i class="icon f7-icons">'+ window.settings.measurements.find(item => item.key === "Time").icon +'</i>',
+                        onClick: function(){sendUartCommand('rstTime')},
+                    }, {
+                        text: 'Energy',
+                        icon: '<i class="icon f7-icons">'+ window.settings.measurements.find(item => item.key === "Ene").icon +'</i>',
+                        onClick: function(){sendUartCommand('rstEne')},
+                    }, {
+                        text: 'Capacity',
+                        icon: '<i class="icon f7-icons">'+ window.settings.measurements.find(item => item.key === "Cap").icon +'</i>',
+                        onClick: function(){sendUartCommand('rstCap')},
+                    }
+                ],
+                [// Second Group
+                    {
+                        text: 'Cancel',
+                        color: 'red',
+                        icon: '<i class="icon f7-icons">xmark_octagon</i>',
+                    }
+                ]
+            ]
+            }).open();
+        })
+        
+    })  //END $onMounted
+
+    
+    return $render;
+};
+</script>

@@ -1,0 +1,64 @@
+//Auto updater
+const UpdaterRootURL = "http://ws.bukys.eu/android/";
+
+const downloadAndInstall = (srcPath) => {
+    var targetDir = app.GetPrivateFolder( "downloads" )
+    var installSource = targetDir + "/recent.apk"
+    
+    // delete file if exists before downloading
+    if(app.FileExists(installSource)) {
+        app.DeleteFile(installSource)
+    }
+    
+    // download and install
+    var down = app.CreateDownloader();
+    down.SetOnComplete( () =>{
+        app.InstallApp( installSource, (pkg, status)=>{
+            if(status == "ABORTED")
+                webapp.dialog.alert("Package installation was aborted.")
+        })
+    } );
+    down.Download( srcPath, targetDir, "recent.apk" );
+};
+
+const isUpdateAvailable = () => {
+    console.log("Tikrinamas atnaujinimas")
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", UpdaterRootURL+"update.json", true);
+    xhr.ontimeout = () => {
+        console.log("The request for update timed out.");
+    };
+    xhr.onload = e => {
+        if (xhr.status == 200){
+            // dont fail if JSON parse fails
+            try { JSON.parse(xhr.responseText) } catch { return }
+            if(parseFloat(JSON.parse(xhr.responseText).powermon.version) < parseFloat(app.GetVersion())  ){
+                var updateJSON = JSON.parse(xhr.responseText).powermon
+                $$('#main-menu-badge').addClass("badge")
+                $$('#li-upgrade-available').css('display', 'block');
+                $$('#a-upgrade-available').on('click', function (e) {
+                    webapp.dialog.confirm(
+                        "Changelog: "+updateJSON.changelog,
+                        "Install version '"+updateJSON.version+"'?",
+                        function () {
+                            downloadAndInstall(UpdaterRootURL + updateJSON.url)
+                        }
+                    )
+                });
+                return
+            }
+            else {
+                return
+            }
+        }
+        else 
+            console.error( "Error: " + httpRequest.status + httpRequest.responseText);
+    };
+    xhr.timeout = 5000;
+    xhr.send();
+};
+        
+setTimeout(function() {
+    isUpdateAvailable()
+}, 5 * 1000);
+

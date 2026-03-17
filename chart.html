@@ -1,0 +1,292 @@
+<template>
+    <!--<div class="page">-->
+    <!--    <div class="navbar">-->
+    <!--        <div class="navbar-bg"></div>-->
+    <!--        <div class="navbar-inner">-->
+    <!--            <div class="left">-->
+    <!--                <a href="#" class="back icon-only">-->
+    <!--                    <i class="icon icon-back"></i>-->
+    <!--                </a>-->
+    <!--            </div>-->
+    <!--            <div class="title">Chart</div>-->
+    <!--            <div class="right">-->
+    <!--                <i class="icon f7-icons">chart_bar_square</i>-->
+    <!--            </div>-->
+    <!--        </div>-->
+    <!--    </div>-->
+    <!--    <div class="page-content">-->
+            <!-- Area Chart element -->
+			<!--<div style="width: 100%;"><canvas id="measurements-chart"></canvas></div>-->
+   <!--     </div>-->
+   <!-- </div>-->
+    
+    
+    
+<div class="page no-navbar">
+  <div class="page-content">
+    <div class="navbar">
+      <div class="navbar-bg"></div>
+      <div class="navbar-inner">
+        <div class="left">
+            <a href="#" class="back icon-only">
+                <i class="icon icon-back"></i>
+            </a>
+        </div>
+        <div class="title">Chart</div>
+        <!--<div class="right">-->
+        <!--    <i class="icon f7-icons">chart_bar_square</i>-->
+        <!--</div>-->
+      </div>
+    </div>
+    <!--<div class="block">-->
+
+        
+        <!-- Data Info -->
+        <div class="block no-margin-top" style="padding: 4px 16px;">
+            <div class="row">
+                <div class="col-100">
+                    <small id="data-info" style="color: #888;">Loading data...</small>
+                </div>
+            </div>
+        </div>
+        
+        <div style="width: 100%;"><canvas id="measurements-chart"></canvas></div>
+
+        <!-- Time Range Selection -->
+        <div class="block no-margin-top" style="padding: 8px 16px;">
+            <div class="row">
+                <div class="col-30">
+                    <span style="line-height: 32px;">Time Range:</span>
+                </div>
+                <div class="col-70">
+                    <div class="item-input-wrap">
+                        <select id="timerange-select" class="input-with-value">
+                            <option value="live">Live (Real-time)</option>
+                            <option value="1h">Last 1 Hour</option>
+                            <option value="3h">Last 3 Hours</option>
+                            <option value="6h">Last 6 Hours</option>
+                            <option value="12h">Last 12 Hours</option>
+                            <option value="24h">Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                            <option disabled value="custom">Custom Range...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Averaging Control -->
+<!--        
+        <div class="block no-margin-top" style="padding: 8px 16px;">
+            <div class="row">
+                <div class="col-30">
+                    <span style="line-height: 32px;">Averaging:</span>
+                </div>
+                <div class="col-70">
+                    <div class="item-input-wrap">
+                        <select id="averaging-select" class="input-with-value">
+                            <option value="1">None (1 point)</option>
+                            <option value="3">Light (3 points)</option>
+                            <option value="5">Medium (5 points)</option>
+                            <option value="10">Heavy (10 points)</option>
+                            <option value="20">Very Heavy (20 points)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+-->
+
+  </div>
+</div>
+    
+    
+    
+</template>
+
+<script>
+export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
+
+    let chartContext = new ChartControl();
+    let currentMode = 'live'; // 'live' or 'historical'
+    let refreshInterval = null;
+    
+    // Define the event handler that uses chartContext
+    const handleBleData = (page) => {
+        if (chartContext && currentMode === 'live') {
+            chartContext.dataAdd(page.Vol, page.Cur, page.Pwr);
+            updateDataInfo();
+        }
+    };
+    
+    const loadHistoricalData = async (range) => {
+        if (!dbManager) return;
+        
+        let data = [];
+        const dataInfoEl = document.getElementById('data-info');
+        
+        switch(range) {
+            case '1h':
+                data = await dbManager.getLastHours(1);
+                break;
+            case '3h':
+                data = await dbManager.getLastHours(3);
+                break;
+            case '6h':
+                data = await dbManager.getLastHours(6);
+                break;
+            case '12h':
+                data = await dbManager.getLastHours(12);
+                break;
+            case '24h':
+                data = await dbManager.getLastHours(24);
+                break;
+            case '7d':
+                data = await dbManager.getLastDays(7);
+                break;
+            case '30d':
+                data = await dbManager.getLastDays(30);
+                break;
+            default:
+                data = dbManager.getLatestMeasurements(100);
+        }
+        
+        // Clear chart and load historical data
+        chartContext.dataClear();
+        
+        if (data.length > 0) {
+            data.forEach(item => {
+                const date = new Date(item.timestamp);
+                const timeStr = addZero(date.getHours()) + ':' + 
+                               addZero(date.getMinutes()) + ':' + 
+                               addZero(date.getSeconds());
+                chartContext.dataAddWithTime(item.Vol, item.Cur, item.Pwr, timeStr);
+            });
+            
+            // Force chart update after all data is loaded
+            chartContext.forceUpdate();
+            
+            if (dataInfoEl) {
+                const start = new Date(data[0].timestamp);
+                const end = new Date(data[data.length - 1].timestamp);
+                dataInfoEl.textContent = `Showing ${data.length} points from ${start.toLocaleString()} to ${end.toLocaleString()}`;
+            }
+        } else {
+            if (dataInfoEl) {
+                dataInfoEl.textContent = 'No data available for selected range';
+            }
+        }
+    };
+    
+    const updateDataInfo = () => {
+        const dataInfoEl = document.getElementById('data-info');
+        if (dataInfoEl && chartContext.chartObject) {
+            const pointCount = chartContext.chartObject.data.labels.length;
+            if (currentMode === 'live') {
+                dataInfoEl.textContent = `Live mode - ${pointCount} points displayed`;
+            }
+        }
+    };
+
+    $onMounted(() => {
+        app.SetOrientation( "Landscape" );
+        app.SetScreenMode( "Full" );
+        
+        // Use setTimeout to delay rendering by 1 second
+        setTimeout(() => {
+            if (chartContext) {
+                chartContext.renderOnScreen(document.getElementById('measurements-chart'));
+            }
+            
+            // Load and set the saved averaging value
+            const savedAveraging = SettingsManager.get('chart')?.averaging || 1;
+            const selectElement = document.getElementById('averaging-select');
+            if (selectElement) {
+                selectElement.value = savedAveraging;
+                chartContext.setAveraging(savedAveraging);
+            }
+            
+            // Load saved time range
+            const savedTimeRange = SettingsManager.get('chart')?.timeRange || 'live';
+            const timeRangeElement = document.getElementById('timerange-select');
+            if (timeRangeElement) {
+                timeRangeElement.value = savedTimeRange;
+                
+                if (savedTimeRange === 'live') {
+                    currentMode = 'live';
+                    updateDataInfo();
+                } else {
+                    currentMode = 'historical';
+                    loadHistoricalData(savedTimeRange);
+                }
+            }
+            
+            // Add event listener for averaging selection change
+            if (selectElement) {
+                selectElement.addEventListener('change', (e) => {
+                    const value = parseInt(e.target.value);
+                    chartContext.setAveraging(value);
+                    SettingsManager.set('chart.averaging', value);
+                });
+            }
+            
+            // Add event listener for time range selection
+            if (timeRangeElement) {
+                timeRangeElement.addEventListener('change', (e) => {
+                    const value = e.target.value;
+                    SettingsManager.set('chart.timeRange', value);
+                    
+                    if (value === 'live') {
+                        currentMode = 'live';
+                        chartContext.dataClear();
+                        updateDataInfo();
+                    } else if (value === 'custom') {
+                        // TODO: Show custom date/time picker
+                        $f7.dialog.alert('Custom range selection coming soon!', 'Info');
+                    } else {
+                        currentMode = 'historical';
+                        loadHistoricalData(value);
+                        
+                        // Set up auto-refresh for historical data every 30 seconds
+                        if (refreshInterval) {
+                            clearInterval(refreshInterval);
+                        }
+                        refreshInterval = setInterval(() => {
+                            if (currentMode === 'historical') {
+                                loadHistoricalData(value);
+                            }
+                        }, 30000);
+                    }
+                });
+            }
+        }, 1000);
+        
+        // Attach the event listener for live data
+        F7Evt.on("EvtBleDataAvailable", handleBleData);
+
+    });
+    
+    $onBeforeUnmount(() => {
+        app.SetOrientation( "Default" )
+        app.SetScreenMode( "Normal" );
+        
+        // Clear refresh interval
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
+        
+        // Remove the event listener to prevent memory leaks
+        F7Evt.off("EvtBleDataAvailable", handleBleData);
+        
+        // Destroy the chart
+        if (chartContext) {
+            chartContext.destroy();
+        }
+        
+        // Database is managed globally, no need to close here
+    });
+    
+    return $render;
+};
+</script>

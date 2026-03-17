@@ -1,0 +1,76 @@
+@font-face {
+  font-family: 'Framework7 Icons';
+  font-style: normal;
+  font-weight: 400;
+  src: url('../fonts/Framework7Icons-Regular.woff2') format('woff2'),
+    url('../fonts/Framework7Icons-Regular.woff') format('woff'),
+    url('../fonts/Framework7Icons-Regular.ttf') format('truetype');
+}
+
+.f7-icons,
+.framework7-icons {
+  font-family: 'Framework7 Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-feature-settings: 'liga';
+  -moz-font-feature-settings: 'liga=1';
+  -moz-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  text-align: center;
+}
+
+
+/* custom icons - Pure css signal strength icon */
+
+.signal-icon {
+  height: 18px;
+  width: 15px;
+  /* To show you the power of flexbox! */
+  display: flex;
+  /* Bars should be placed left to right */
+  flex-direction: row;
+  /* Evenly space the bars with space in between */
+  justify-content: space-between;
+  /* Sink the bars to the bottom, so they go up in steps */
+  align-items: baseline;
+
+}
+
+.signal-icon .signal-bar {
+  width: 3px;
+  /* All bars faded by default */
+  opacity: 30%;
+  /* Choose a color */
+  background: #aa2200;
+}
+
+/* 3 different heights for 3 different bars */
+.signal-icon .signal-bar:nth-child(1) { height: 20%; }
+.signal-icon .signal-bar:nth-child(2) { height: 45%; }
+.signal-icon .signal-bar:nth-child(3) { height: 70%; }
+.signal-icon .signal-bar:nth-child(4) { height: 100%; }
+
+/* Emphasize different bars depending on
+   weak/medium/strong classes */
+.signal-icon.weak .signal-bar:nth-child(1),
+.signal-icon.medium .signal-bar:nth-child(1),
+.signal-icon.medium .signal-bar:nth-child(2),
+.signal-icon.strong .signal-bar:nth-child(1),
+.signal-icon.strong .signal-bar:nth-child(2),
+.signal-icon.strong .signal-bar:nth-child(3),
+.signal-icon.full .signal-bar:nth-child(1),
+.signal-icon.full .signal-bar:nth-child(2),
+.signal-icon.full .signal-bar:nth-child(3),
+.signal-icon.full .signal-bar:nth-child(4)
+{ opacity: 100%; }

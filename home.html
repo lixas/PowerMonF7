@@ -1,0 +1,662 @@
+<template>
+<div class="page">
+	<div class="navbar">
+		<div class="navbar-bg"></div>
+		<div class="navbar-inner">
+			<div class="left">
+				<a class="link panel-open icon-only" data-panel="left">
+					<i class="icon f7-icons">bars<span id="main-menu-badge" class="color-red"/></i>
+				</a>
+			</div>
+			<div class="title"><b>PowerMon</b> for Atorch®</div>
+			<div class="right">
+				<a id="connect-button" href="#" class="link icon-only navbar-tooltip tooltip-init popup-open" data-tooltip="Scan for BLE devices and connect" data-popup=".ble-devices-available-popup">
+					<i class="icon f7-icons">wifi</i>
+				</a>
+				<a id="disconnect-button" href="#" class="link icon-only navbar-tooltip" @click=${deviceDisconnect.bind(null)} >
+					<i class="icon f7-icons">wifi_slash</i> 
+				</a>
+			</div>
+		</div>
+	</div>
+	<div class="page-content">
+
+<!-- main content begin -->
+        <div class="block">
+            <div class="card card">
+                <div class="card-header">
+                    Power 
+                    <a href="#" @click=${explainIcon.bind(null, 'W')}>
+                        <i class="icon f7-icons" style="color: #8A2BE2;">${window.settings.measurements.find(item => item.key === "Pwr").icon}</i>
+                    </a>
+                </div>
+                <div class="card-content card-content-padding">
+                    <p class="text-align-center">
+                        <span id="power-value" style="font-size: 4em;">---</span> W
+                    </p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2">
+                <div class="card">
+                    <div class="card-header">
+                        Current
+                        <a href="#" @click=${explainIcon.bind(null, 'A')}>
+                            <i class="icon f7-icons" style="color: #3dc2ff;">${window.settings.measurements.find(item => item.key === "Cur").icon}</i>
+                        </a>
+                    </div>
+                    <div class="card-content card-content-padding">
+                        <p class="text-align-center">
+                            <span id="current-value" style="font-size: 2.8em;">---</span>A
+                        </p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        Voltage
+                        <a href="#" @click=${explainIcon.bind(null, 'V')}>
+                            <i class="icon f7-icons" style="color: #ffc409;">${window.settings.measurements.find(item => item.key === "Vol").icon}</i>
+                        </a>
+                    </div>
+                    <div class="card-content card-content-padding">
+                        <p class="text-align-center">
+                            <span id="voltage-value" style="font-size: 2.8em;">---</span>V
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Remote control buttons -->
+		<div class="block">
+			<div class="card card-outline">
+                <div class="card-header">
+                    Device remote control 
+                    <a href="#" @click=${explainIcon.bind(null, 'remote')}>
+                        <i class="icon f7-icons" style="color: #FF6B8B;">info_circle</i>
+                    </a>
+                </div>
+                <div class="card-content card-content-padding">
+                    <div class="grid grid-cols-4 grid-gap">
+                        <button id="btnSetup" class="button button-tonal disabled">Setup</button>
+                        <button id="btnMinus" class="button button-tonal disabled">-</button>
+                        <button id="btnPlus" class="button button-tonal disabled">+</button>
+                        <button id="btnEnter" class="button button-tonal disabled">Enter</button>
+                    </div>
+                    <br />
+                    <div class="grid grid-cols-1 grid-gap">
+                        <div>
+                            <button id="btnReset" class="button button-tonal disabled" >Reset measurement</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+			<!-- <div class="block-footer">tooter text</div> -->
+			<!-- / Remote control buttons -->
+		</div>
+	</div>
+
+<!-- BLE devices list when connecting-->
+	<div class="popup ble-devices-available-popup">
+        <div class="page">
+            <div class="navbar">
+                <div class="navbar-bg"></div>
+                <div class="navbar-inner">
+                    <div class="title">Select Atorch device</div>
+                    <div class="right">
+                        <a class="link popup-close">Close</a>
+                    </div>
+                </div>
+            </div>
+            <div class="page-content">
+                ${ (app.IsLocationEnabled("GPS") == false) && $h`<p>Bluetooth Low Energy (BLE) scanning requires location permissions. 
+                <div class="button button-small color-red" @click=${openGpsSettings}>Enable it?</div>
+                </p>`}
+                <div class="list list-outline-ios list-strong-ios list-dividers-ios">
+                    <ul>
+                        <li>
+                            <div class="item-content">
+                                <div class="item-inner">
+                                    <div class="item-title">Keep screen on while connected</div>
+                                    <div class="item-after">
+                                        <label class="toggle toggle-init">
+                                            <input type="checkbox" id="keep-screen" />
+                                            <span class="toggle-icon"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        <!--<li>-->
+                        <!--    <label class="item-checkbox item-checkbox-icon-start item-content">-->
+                        <!--        <input type="checkbox" id="keep-screen-on" value="keep-screen-on" />-->
+                        <!--        <i class="icon icon-checkbox"></i>-->
+                        <!--        <div class="item-inner">-->
+                        <!--            <div class="item-title">Keep screen on while connected</div>-->
+                        <!--        </div>-->
+                        <!--    </label>-->
+                        <!--</li>-->
+    					${BLEDevicesList.map((item) => $h`
+    					<li>
+    						<a class="item-link item-content" @click=${onDeviceSelected.bind(null, item.mac )}>
+    							<div class="item-media"><i class="icon f7-icons">info_circle</i></div>
+    							<div class="item-inner">
+    								<div class="item-title">
+                                        <div class="item-header">${item.mac}</div>
+                                        ${item.name}
+                                        <div class="item-footer">${item.signal} dbm</div> 
+                                    </div>
+                                    <div class="item-after signal-icon ${item.level}">
+                                        <div class="signal-bar"></div>
+                                        <div class="signal-bar"></div>
+                                        <div class="signal-bar"></div>
+                                        <div class="signal-bar"></div>
+                                    </div>
+                                </div>
+                            </a>
+                        </li>
+                        `)}
+                        <li>
+                            <a class="item-link item-content" @click=${onDeviceSelected.bind(null, '00:00:00:00:00:00')} >
+                                <div class="item-media"><i class="icon f7-icons">bolt_horizontal</i></div>
+                                <div class="item-inner">
+                                    <div class="item-title">
+                                        <div class="item-header">00:00:00:00:00:00</div>
+                                        Hardware Simulator
+                                    </div>
+                                    <div class="item-after signal-icon full">
+                                        <div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div>
+                                    </div>
+                                </div>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!--Panel left-->
+    <div class="panel panel-left panel-cover">
+        <div class="page page-accounts">
+            <div class="page-content">
+                <div class="block-title .round panel-logo">
+                    <div class="margin-left">
+                        <img alt="Logo" src="Img/website_logo.png" />
+                        <p class="title">Version 1.02</p> Build 20260303
+                    </div>
+                </div>
+                <div class="list no-chevron">
+                    <ul>
+                        <li>
+                            <a href="#" class="item-content item-link" @click=${toggleTheme}>
+                                <div class="item-media">
+                                    <i class="icon f7-icons">circle_lefthalf_fill</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">Switch theme</div>
+                                </div>
+                            </a>
+                        </li>
+                        <div class="list list-outline-ios list-strong-ios list-dividers-ios"></div>
+                        <li>
+                            <a href="/details" class="item-content item-link panel-close" data-transition="f7-cover">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">doc_plaintext</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">Details</div>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/chart" class="item-content item-link panel-close" data-transition="f7-cover">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">chart_bar_square</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">Chart</div>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/settings" class="item-content item-link panel-close" data-transition="f7-cover">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">gear_alt</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">Settings</div>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/debug" class="item-content item-link panel-close" data-transition="f7-cover">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">ant_fill</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">Debug Log</div>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/about" class="item-content item-link panel-close" data-transition="f7-cover">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">question_circle</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">About</div>
+                                </div>
+                            </a>
+                        </li>
+                        <div class="list list-outline-ios list-strong-ios list-dividers-ios"></div>
+                        <li>
+                            <a id="about-me" class="item-content item-link link">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">person</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">About Me</div>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a id="website" class="item-content item-link link external">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">archivebox</i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">Website</div>
+                                </div>
+                            </a>
+                        </li>
+                        <div class="list list-outline-ios list-strong-ios list-dividers-ios"></div>
+                        <li id="li-upgrade-available" style="display:none" >
+                            <a id="a-upgrade-available" href="#" class="item-content item-link">
+                                <div class="item-media">
+                                    <i class="icon f7-icons">tray_arrow_down<span class="badge color-red" /></i>
+                                </div>
+                                <div class="item-inner">
+                                    <div class="item-title">Upgrade available</div>
+                                </div>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</template>
+
+<script>
+export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7router}) => {
+	let BLEDevicesList = window.settings.devices
+	let keepScreenOn = false
+	
+	const defaultConnectionNote = () => {
+		if(document.querySelector('input#default-connection-checkbox')) {
+			if (document.querySelector('input#default-connection-checkbox').checked)
+			document.querySelector('#disclaimer-for-default-connection').style.display='block'
+			else
+				document.querySelector('#disclaimer-for-default-connection').style.display='none'
+		}
+		$update();
+	}
+	
+	const onDeviceSelected = (adr) => {
+		connectPopup.close();
+		F7Evt.emit("EvtEnableAllRemoteControlButtons")
+		onBleDeviceSelected(adr, keepScreenOn)
+	}
+	
+	const openGpsSettings = () => {
+	    app.SendIntent(null, null, "android.settings.LOCATION_SOURCE_SETTINGS" )
+	}
+	
+	const deviceDisconnect = () => {
+        // F7Evt.emit("EvtDisableAllRemoteControlButtons")
+        bleDeviceDisconnect()
+        app.PreventScreenLock(false)
+	}
+	
+	// Will be split into separate functions
+	const explainIcon = (icon) => {
+        switch(icon) {
+        case "W":
+            modalText = "Power is the rate at which energy is used or produced. Think of it like the overall strength of your device or how much work it can do at once. Just like a car's horsepower tells you how powerful the engine is, electrical power tells you how much electrical \"strength\" is being used. It's measured in watts (W) or kilowatts (KW)."
+            modalName = "Power"
+            break;
+        case "A":
+            modalText = "Current is the flow of electricity, similar to water flowing through a pipe. It tells you how much electricity is moving through your device at any moment. The more current flowing, the more electrons are moving through the circuit. It's measured in amperes or amps (A).";
+            modalName = "Current"
+            break;
+        case "V":
+            modalText = "Voltage is like electrical pressure or force. It's what pushes the electricity through your device, similar to how water pressure pushes water through pipes. Higher voltage means a stronger \"push\" of electricity. It's measured in volts (V)."
+            modalName = "Voltage"
+            break
+        case "remote":
+            modalText = "Using these buttons you can control device. You must have visual with the device to see what you are doing."
+            modalName = "Remote control"
+            break
+        case "reset":
+            modalText = "Tap any reset button to clear its respective measurement and start fresh. The Time reset returns the timer to zero, Energy reset clears all accumulated usage data, and Capacity reset returns to initial measurement values. Use these functions whenever you need to begin a new measurement session or clear previous readings."
+            modalName = "Reset measurement"
+            break
+        }
+        
+        $f7.dialog.alert(modalText, modalName)
+	}
+		
+	$onMounted(() => {
+        // setTimeout(() => {
+        //     // window.location.href = "/settings.html"
+        //     $f7router.navigate('/settings')
+        // }, 1000);
+
+	    let remoteControlButtonsIds = ["btnSetup", "btnMinus", "btnPlus", "btnEnter", "btnReset"]
+	    
+        remoteControlButtonsIds.filter(id => id !== "btnReset").forEach(entry => {
+            $$("#"+entry).on("click", (entry)=>{
+                sendUartCommand(entry.target.id)
+            })
+        });
+
+        $$('#keep-screen').on('change', function(){
+            keepScreenOn = this.checked
+        })
+        
+        $$('#about-me').on('click', () => {
+            app.OpenUrl('http://www.bukys.eu/me/start')
+        })
+        
+        $$('#website').on('click', () => {
+            app.OpenUrl('http://www.bukys.eu')
+        })
+        
+        $$('#connect-button').on('taphold', function () {
+            $f7.dialog.alert('Tap hold fired!');
+        });
+        
+        $$('#btnReset').on('click', () => {
+            $f7.actions.create({ buttons: [
+                [// First Group
+                    {
+                        text: 'Select measurement to reset',
+                        label: true
+                    }, {
+                        text: 'Time',
+                        icon: '<i class="icon f7-icons">'+ window.settings.measurements.find(item => item.key === "Time").icon +'</i>',
+                        onClick: function(){sendUartCommand('rstTime')},
+                    }, {
+                        text: 'Energy',
+                        icon: '<i class="icon f7-icons">'+ window.settings.measurements.find(item => item.key === "Ene").icon +'</i>',
+                        onClick: function(){sendUartCommand('rstEne')},
+                    }, {
+                        text: 'Capacity',
+                        icon: '<i class="icon f7-icons">'+ window.settings.measurements.find(item => item.key === "Cap").icon +'</i>',
+                        onClick: function(){sendUartCommand('rstCap')},
+                    }
+                ],
+                [// Second Group
+                    {
+                        text: 'Cancel',
+                        color: 'red',
+                        icon: '<i class="icon f7-icons">xmark_octagon</i>',
+                    }
+                ]
+            ]
+            }).open();
+        })
+        
+        $$('#disconnect-button').css('display', 'none');
+	
+        // Open device selection window and pupulate found BLE devices
+		connectPopup = $f7.popup.create({
+            el: '.ble-devices-available-popup',
+            swipeToClose: true,
+            push: true,
+    		on: {
+    		  //  updateIntervalTimer: 0,
+                opened: function () {
+                    Logger.log("Showing list of available BLE devices")
+                    
+                    ble.SetOnDevice(function(name, address, bonded, rssi, data) {
+                        if (name) {
+                            const SignalLevel = (rssi) => {
+                                if (rssi <= -95) return "none";
+                                else if (rssi <= -80) return "weak";
+                                else if (rssi <= -65) return "medium";
+                                else if (rssi <= -49) return "strong";
+                                else return "full";
+                            }
+                            
+                            const newDevice = {
+                                mac: address, 
+                                name: name, 
+                                signal: rssi,
+                                level: SignalLevel(rssi),
+                                lastSeen: Date.now()
+                            };
+                            
+                            // Check if device already exists and update it
+                            let deviceFound = false;
+                            for (const device of BLEDevicesList) {
+                                if (device.mac === newDevice.mac) {
+                                    device.name = newDevice.name;
+                                    device.signal = newDevice.signal;
+                                    device.level = SignalLevel(newDevice.signal);
+                                    device.lastSeen = Date.now();
+                                    deviceFound = true;
+                                    break;
+                                }
+                            }
+                            
+                            // Add new device if not found
+                            if (!deviceFound) {
+                                BLEDevicesList.push(newDevice); // add to the end
+                                // BLEDevicesList.unshift(newDevice); // add to the begining.
+                            }
+                            
+                            // Remove devices not seen in the last 10 seconds
+                            const cutoffTime = Date.now() - (10 * 1000);
+                            BLEDevicesList = BLEDevicesList.filter(device => device.lastSeen > cutoffTime);
+                            
+                            $update();
+                        }
+                    });
+                    
+
+                    ble.SetOnConnect( function(){
+                        app.ShowPopup( "Connected!" );
+                    });
+                    ble.StartScan();
+                },
+                closed: function () {
+                    console.log("Stop BLE scanning")
+                    // clearInterval(updateIntervalTimer);
+                    ble.StopScan();
+                },
+            }
+        });
+        
+        F7Evt.on("EvtBleDataAvailable", function(page) {
+            $$('#power-value').html(page.Pwr)
+            $$('#current-value').html(page.Cur)
+            $$('#voltage-value').html(page.Vol)
+        })
+        
+        F7Evt.on("EvtEnableAllRemoteControlButtons", function() {
+            $$('#connect-button').css('display', 'none');
+            $$('#disconnect-button').css('display', 'block');
+            remoteControlButtonsIds.forEach(entry => {
+                $$("#"+entry).removeClass("disabled")
+            });
+        })
+        
+        F7Evt.on("EvtDisableAllRemoteControlButtons", function() {
+            $$('#connect-button').css('display', 'block');
+            $$('#disconnect-button').css('display', 'none');
+            remoteControlButtonsIds.forEach(entry => {
+                $$("#"+entry).addClass("disabled")
+            });
+        })
+        
+
+        //Auto updater
+        const UpdaterRootURL = "http://bukys.eu/android/";
+        const localFileName = "recent.apk";
+        
+        const downloadAndInstall = (srcPath) => {
+            var targetDir = app.GetPrivateFolder("downloads");
+            var installSource = targetDir + "/" + localFileName;
+        
+            try {
+                if (app.FileExists(installSource)) {
+                    app.DeleteFile(installSource);
+                }
+            } catch (e) {
+                Logger.warn("Could not delete old APK: " + e);
+            }
+        
+            var down = app.CreateDownloader();
+        
+            down.SetOnError((error) => {
+                Logger.error("Download failed: " + error);
+                app.dialog.alert("Download failed: " + error);
+            });
+        
+            down.SetOnComplete(() => {
+                if (!app.FileExists(installSource)) {
+                    Logger.error("Downloaded APK not found at: " + installSource);
+                    app.dialog.alert("Update failed: downloaded file not found.");
+                    return;
+                }
+        
+                try {
+                    app.InstallApp(installSource, (pkg, status) => {
+                        if (status == "ABORTED")
+                            app.dialog.alert("Package installation was aborted.");
+                        else if (status == "ERROR")
+                            app.dialog.alert("Package installation failed.");
+                    });
+                } catch (e) {
+                    Logger.error("InstallApp threw an exception: " + e);
+                    app.dialog.alert("Could not launch installer: " + e);
+                }
+            });
+        
+            try {
+                down.Download(srcPath, targetDir, localFileName);
+            } catch (e) {
+                Logger.error("Failed to start download: " + e);
+                app.dialog.alert("Could not start download: " + e);
+            }
+        };
+        
+        const isUpdateAvailable = () => {
+            Logger.log("Checking for newer version");
+        
+            try {
+                app.HttpRequest(
+                    "GET",
+                    UpdaterRootURL + "update.json",
+                    "",
+                    "",
+                    (error, response, status) => {
+                        // --- Network / HTTP errors ---
+                        if (error || status != 200) {
+                            // Classify common error strings returned by DroidScript
+                            var msg = String(error).toLowerCase();
+        
+                            if (msg.includes("unable to resolve host") || msg.includes("no address")) {
+                                Logger.warn("Update check: server unreachable (DNS failure).");
+                            } else if (msg.includes("connection refused") || msg.includes("econnrefused")) {
+                                Logger.warn("Update check: connection refused.");
+                            } else if (msg.includes("timeout") || msg.includes("timed out")) {
+                                Logger.warn("Update check: request timed out.");
+                            } else if (msg.includes("ssl") || msg.includes("certificate") || msg.includes("handshake")) {
+                                Logger.warn("Update check: SSL/certificate error — " + error);
+                            } else if (status == 404 ) {
+                                Logger.warn("Update check: update.json not found on server (404).");
+                            } else if (status == 403) {
+                                Logger.warn("Update check: access forbidden (403).");
+                            } else {
+                                Logger.warn("Update check failed");
+                            }
+                            return;
+                        }
+        
+                        // --- Empty / null response ---
+                        if (!response || response.trim() === "") {
+                            Logger.warn("Update check: empty response from server.");
+                            return;
+                        }
+        
+                        // --- JSON parse ---
+                        var updateData;
+                        try {
+                            updateData = JSON.parse(response);
+                        } catch (e) {
+                            Logger.warn("Update check: invalid JSON received — " + e);
+                            return;
+                        }
+        
+                        // --- Missing expected fields ---
+                        var updateJSON = updateData && updateData.powermon;
+                        if (!updateJSON) {
+                            Logger.warn("Update check: 'powermon' key missing from update.json.");
+                            return;
+                        }
+                        if (!updateJSON.version || !updateJSON.url) {
+                            Logger.warn("Update check: update.json is missing 'version' or 'url' fields.");
+                            return;
+                        }
+        
+                        // --- Version comparison ---
+                        var serverVersion = parseFloat(updateJSON.version);
+                        var localVersion  = parseFloat(app.GetVersion());
+        
+                        if (isNaN(serverVersion) || isNaN(localVersion)) {
+                            Logger.warn("Update check: could not parse version numbers " +
+                                "(server='" + updateJSON.version + "', local='" + app.GetVersion() + "').");
+                            return;
+                        }
+        
+                        if (serverVersion > localVersion) {
+                            logger.warn("Update check: new version available: " + localVersion + " -> " + serverVersion)
+                            $$('#main-menu-badge').addClass("badge");
+                            $$('#li-upgrade-available').css('display', 'block');
+                            $$('#a-upgrade-available').off('click').on('click', function () {
+                                webapp.dialog.confirm(
+                                    "Changelog: " + (updateJSON.changelog || "N/A"),
+                                    "Install version '" + updateJSON.version + "'?",
+                                    function () {
+                                        downloadAndInstall(UpdaterRootURL + updateJSON.url);
+                                    }
+                                );
+                            });
+                        } else {
+                            Logger.log("Update check: app is up to date (v" + localVersion + ").");
+                        }
+                    }
+                );
+            } catch (e) {
+                // HttpRequest itself threw (e.g. malformed URL, API not available)
+                Logger.error("Update check: HttpRequest exception — " + e);
+            }
+        };
+        
+        setTimeout(function () {
+            isUpdateAvailable();
+        }, 5 * 1000);
+
+	}) //END $onMounted
+	
+	$onBeforeUnmount(() => {
+
+        // crt.destroy()
+	})
+	
+	return $render;
+}
+</script>

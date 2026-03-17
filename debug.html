@@ -1,0 +1,200 @@
+<template>
+<div class="page" data-name="debug">
+    <div class="navbar">
+        <div class="navbar-bg"></div>
+        <div class="navbar-inner">
+            <div class="left">
+                <a href="#" class="back icon-only">
+                    <i class="icon icon-back"></i>
+                </a>
+            </div>
+            <div class="title">Debug Log</div>
+            <div class="right">
+                <a href="#" class="link icon-only" id="btnDebugExport">
+                    <i class="icon f7-icons">square_arrow_up</i>
+                </a>
+                <a href="#" class="link icon-only" id="btnDebugClear">
+                    <i class="icon f7-icons">trash</i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-content">
+
+        <!-- Level filter -->
+        <div class="list list-outline-ios list-strong-ios no-chevron no-margin-bottom">
+            <ul>
+                <li class="item-content">
+                    <div class="item-media">
+                        <i class="icon f7-icons">line_horizontal_3_decrease</i>
+                    </div>
+                    <div class="item-inner">
+                        <div class="item-title">Severity filter</div>
+                        <div class="item-after" style="gap: 8px;">
+                            <span id="debugEntryCount" class="badge color-gray">0</span>
+                            <select id="debugLevelFilter" style="
+                                padding: 4px 8px;
+                                border-radius: 8px;
+                                border: 1px solid var(--f7-input-outline-border-color, #ccc);
+                                background: transparent;
+                                color: inherit;
+                                font-size: 14px;
+                            ">
+                                <option value="ALL">All</option>
+                                <option value="INFO">Info</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="ERROR">Error</option>
+                            </select>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Log entries list -->
+        <div class="list media-list no-chevron" id="debugLogList">
+            <ul id="debugLogUl">
+                <!-- populated by JS -->
+            </ul>
+        </div>
+
+        <!-- Empty state -->
+        <div id="debugEmptyState" class="block text-align-center" style="padding-top: 64px; color: var(--f7-list-item-subtitle-text-color);">
+            <i class="icon f7-icons" style="font-size: 52px; opacity: 0.2;">doc_text_search</i>
+            <p style="margin-top: 10px; font-size: 14px;">No entries for this level</p>
+        </div>
+
+    </div>
+</div>
+</template>
+
+<script>
+export default (props, { $f7, $on, $onMounted }) => {
+
+    const LEVEL_COLORS = {
+        INFO:    "blue",
+        WARNING: "orange",
+        ERROR:   "red"
+    };
+
+    let currentFilter = "ALL";
+
+    // ── Rendering ──────────────────────────────────────────────────────────
+
+    const renderEntry = (entry) => {
+        const color = LEVEL_COLORS[entry.levelKey] || "gray";
+        return `<li>
+            <div class="item-content">
+                <div class="item-inner">
+                    <div class="item-title-row">
+                        <div class="item-title" style="
+                            font-size: 13px;
+                            font-family: monospace;
+                            white-space: normal;
+                            word-break: break-word;
+                        ">${entry.message}</div>
+                        <div class="item-after">
+                            <span class="badge color-${color}">${entry.level}</span>
+                        </div>
+                    </div>
+                    <div class="item-subtitle" style="font-size: 11px; opacity: 0.6; display: flex; gap: 10px;">
+                        <span>${entry.timestamp}</span>
+                    </div>
+                </div>
+            </div>
+        </li>`;
+    };
+
+    const refresh = () => {
+        const entries   = Logger.getLogs(currentFilter);
+        const ul        = document.getElementById("debugLogUl");
+        const emptyEl   = document.getElementById("debugEmptyState");
+        const badgeEl   = document.getElementById("debugEntryCount");
+
+        if (!ul) return;
+
+        badgeEl.textContent = entries.length;
+
+        if (entries.length === 0) {
+            ul.innerHTML = "";
+            emptyEl.style.display = "";
+        } else {
+            // Newest entries at the top
+            ul.innerHTML = entries.slice().reverse().map(renderEntry).join("");
+            emptyEl.style.display = "none";
+        }
+    };
+
+    // ── Export ─────────────────────────────────────────────────────────────
+
+    const doExport = () => {
+        const text = Logger.exportText(currentFilter);
+
+        const pad   = n => n < 10 ? "0" + n : String(n);
+        const d     = new Date();
+        const stamp = d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) +
+                      "_" + pad(d.getHours()) + pad(d.getMinutes());
+        const filename = "powermon-log-" + stamp + ".txt";
+
+        // DroidScript: write to public Downloads folder
+        if (typeof app !== "undefined" && typeof app.CreateFile === "function") {
+            try {
+                const dir  = app.GetSpecialFolder("Downloads");
+                const path = dir + "/" + filename;
+                const f    = app.CreateFile(path, "rw");
+                text.split("\n").forEach(line => f.WriteText(line));
+                f.Close();
+                Logger.info("Log exported to " + path);
+                $f7.toast.create({ text: "Saved: " + filename, closeTimeout: 2500 }).open();
+                return;
+            } catch (e) {
+                Logger.error("DS file export failed: " + e.message);
+            }
+        }
+
+        // WebView / browser fallback — trigger a download
+        try {
+            const blob = new Blob([text], { type: "text/plain" });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement("a");
+            a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+            Logger.info("Log exported via browser download");
+        } catch (e) {
+            $f7.dialog.alert("Export failed: " + e.message, "Export Error");
+        }
+    };
+
+    // ── Lifecycle ──────────────────────────────────────────────────────────
+
+    $onMounted(() => {
+        refresh();
+
+        // Severity filter
+        document.getElementById("debugLevelFilter").addEventListener("change", function () {
+            currentFilter = this.value;
+            refresh();
+        });
+
+        // Clear all logs
+        $$('#btnDebugClear').on('click', () => {
+            $f7.dialog.confirm("Clear all log entries?", "Clear Logs", () => {
+                Logger.clear();
+                refresh();
+            });
+        });
+
+        // Export
+        $$('#btnDebugExport').on('click', () => {
+            if (Logger.count(currentFilter) === 0) {
+                $f7.toast.create({ text: "Nothing to export", closeTimeout: 1800 }).open();
+                return;
+            }
+            doExport();
+        });
+    });
+
+    return $render;
+};
+</script>
