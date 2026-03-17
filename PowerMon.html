@@ -105,7 +105,6 @@
 <script src="chart.js"></script>
 <script>
 
-    // app.OpenDatabase("PowerMonData.sql");
     //Serv files from internal web server so xhr requests work.
     cfg.Serv;
     app.EnableBackKey( false );
@@ -251,6 +250,23 @@
         return
 	}
 
+    const computePower = (data) => {
+        const method = SettingsManager.get('powerCalcMethod') || 'measured';
+        const volts = parseFloat(data.Vol) || 0;
+        const amps = parseFloat(data.Cur) || 0;
+        const pf = parseFloat(data.PowFact) || 0;
+
+        switch (method) {
+            case 'VA':
+                return volts * amps;
+            case 'VAPF':
+                return pf ? volts * amps * pf : volts * amps;
+            case 'measured':
+            default:
+                return parseFloat(data.Pwr) || 0;
+        }
+    };
+
     const OnBleUartReceive = (data) => {
         if (data == 'FF' && BufferUart.length >=36*2 ) {
             if( deviceType != BLEParser.getDeviceType()){
@@ -261,6 +277,7 @@
             switch(BufferUart.substring(4, 6)){
                 case '01':  //Data
                     var parsed = BLEParser.ParseUartData(BufferUart, deviceType)
+                    parsed.Pwr = computePower(parsed)
                     onBleDataAvailable(parsed)
                     // Save to database
                     saveToDatabase(parsed);
@@ -315,7 +332,9 @@
     };
 
 	const onBleDeviceSelected = (adr, screenLock) => {
-        app.PreventScreenLock( screenLock )
+        const keepOn = !!SettingsManager.get('screenOn');
+        runtime.keepScreenOn = keepOn;
+        app.PreventScreenLock( keepOn )
 
 	    
 		if (!stateBleConnected){
@@ -341,9 +360,7 @@
         stateBleConnected = false
         F7Evt.emit("EvtDisableAllRemoteControlButtons")
         
-        if(runtime.keepScreenOn ){
-            app.PreventScreenLock( false )
-        }
+        app.PreventScreenLock(false)
             
         if (sim.Status()){
             sim.Stop()

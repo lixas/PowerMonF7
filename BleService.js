@@ -54,7 +54,7 @@ function OnStop() {
 
 // Initialize SQLite database
 function obsolete_initDatabase() {
-    db = app.OpenDatabase("PowerMonData");
+    db = app.OpenDatabase("PowerMonData.sqlite");
     
     // Create measurements table if it doesn't exist
     db.ExecuteSql(

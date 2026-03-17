@@ -4,7 +4,7 @@
 
 class DatabaseManager {
     constructor() {
-        this.db = app.OpenDatabase("PowerMonData");
+        this.db = app.OpenDatabase("PowerMonData.sqlite");
         this.init();
     }
     

@@ -29,7 +29,7 @@
         <ul>
         <!-- Screen on -->
           <li>
-            <div class="disabled item-content">
+            <div class="item-content">
               <div class="item-inner">
                 <div class="item-title">
                   Screen on while connected
@@ -37,7 +37,7 @@
                 </div>
                 <div class="item-after">
                   <label class="toggle toggle-init">
-                    <input type="checkbox" @change=${KeepScreenOnChange} />
+                    <input id="keep-screen-setting" type="checkbox" @change=${KeepScreenOnChange} />
                     <span class="toggle-icon"></span>
                   </label>
                 </div>
@@ -64,8 +64,8 @@
           </li>
         <!--power factor setting-->
           <li>
-            <a class="disabled item-link smart-select smart-select-init" data-open-in="sheet" data-close-on-select="true" data-sheet-close-link-text="Close">
-              <select name="power" @change=${powerChange}>
+            <a class="item-link smart-select smart-select-init" data-open-in="sheet" data-close-on-select="true" data-sheet-close-link-text="Close">
+              <select id="power-calc-method" name="power" @change=${powerChange}>
                 <option value='measured' data-display-as="Measured">Measured by device</option>
                 <option value='VA' data-display-as="VoltAmp">Volts * Amps</option>
                 <option value='VAPF' data-display-as="VolAmpPf">Volts * Amps * PowerFactor</option>
@@ -276,13 +276,35 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
     
     let settingsVals = window.settings;
   
+    const ApplyScreenLockSetting = (enabled) => {
+        SettingsManager.set('screenOn', enabled ? 1 : 0);
+        if (window.runtime) {
+            window.runtime.keepScreenOn = enabled;
+        }
+        if (window.stateBleConnected) {
+            app.PreventScreenLock(enabled);
+        }
+    };
+
     const KeepScreenOnChange = (evt) =>{
-        SettingsManager.set('screenOn', evt.target.value);
+        ApplyScreenLockSetting(evt.target.checked);
     }
 
   const showChartChange = (evt) => {
     settingsVals.chart.show = evt.target.checked;
   }
+
+  $onMounted(() => {
+    const screenOn = !!SettingsManager.get('screenOn');
+    const screenCheckbox = document.getElementById('keep-screen-setting');
+    if (screenCheckbox) screenCheckbox.checked = screenOn;
+
+    const powerSelect = document.getElementById('power-calc-method');
+    if (powerSelect) powerSelect.value = SettingsManager.get('powerCalcMethod');
+
+    const themeSelect = document.querySelector('select[name="themeChooser"]');
+    if (themeSelect) themeSelect.value = SettingsManager.get('theme');
+  });
 
   const powerChange = (evt) => {
     SettingsManager.set('powerCalcMethod', evt.target.value);

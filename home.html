@@ -291,7 +291,7 @@
 <script>
 export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7router}) => {
 	let BLEDevicesList = window.settings.devices
-	let keepScreenOn = false
+	let keepScreenOn = !!SettingsManager.get('screenOn')
 	
 	const defaultConnectionNote = () => {
 		if(document.querySelector('input#default-connection-checkbox')) {
@@ -361,6 +361,7 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
             })
         });
 
+        $$('#keep-screen').prop('checked', keepScreenOn);
         $$('#keep-screen').on('change', function(){
             keepScreenOn = this.checked
         })
