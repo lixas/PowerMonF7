@@ -292,6 +292,7 @@
 export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7router}) => {
 	let BLEDevicesList = window.settings.devices
 	let keepScreenOn = !!SettingsManager.get('screenOn')
+	let connectPopup;
 	
 	const defaultConnectionNote = () => {
 		if(document.querySelector('input#default-connection-checkbox')) {
@@ -305,67 +306,76 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
 	
 	const onDeviceSelected = (adr) => {
 		connectPopup.close();
-		F7Evt.emit("EvtEnableAllRemoteControlButtons")
 		onBleDeviceSelected(adr, keepScreenOn)
 	}
 	
 	const openGpsSettings = () => {
+        Logger.log("Opening GPS settings");
 	    app.SendIntent(null, null, "android.settings.LOCATION_SOURCE_SETTINGS" )
 	}
 	
 	const deviceDisconnect = () => {
-        // F7Evt.emit("EvtDisableAllRemoteControlButtons")
         bleDeviceDisconnect()
         app.PreventScreenLock(false)
 	}
 	
-	// Will be split into separate functions
+	/**
+	 * Show explanation modal for measurement icons
+	 */
 	const explainIcon = (icon) => {
+        let modalText = "";
+        let modalName = "";
+        
         switch(icon) {
-        case "W":
-            modalText = "Power is the rate at which energy is used or produced. Think of it like the overall strength of your device or how much work it can do at once. Just like a car's horsepower tells you how powerful the engine is, electrical power tells you how much electrical \"strength\" is being used. It's measured in watts (W) or kilowatts (KW)."
-            modalName = "Power"
-            break;
-        case "A":
-            modalText = "Current is the flow of electricity, similar to water flowing through a pipe. It tells you how much electricity is moving through your device at any moment. The more current flowing, the more electrons are moving through the circuit. It's measured in amperes or amps (A).";
-            modalName = "Current"
-            break;
-        case "V":
-            modalText = "Voltage is like electrical pressure or force. It's what pushes the electricity through your device, similar to how water pressure pushes water through pipes. Higher voltage means a stronger \"push\" of electricity. It's measured in volts (V)."
-            modalName = "Voltage"
-            break
-        case "remote":
-            modalText = "Using these buttons you can control device. You must have visual with the device to see what you are doing."
-            modalName = "Remote control"
-            break
-        case "reset":
-            modalText = "Tap any reset button to clear its respective measurement and start fresh. The Time reset returns the timer to zero, Energy reset clears all accumulated usage data, and Capacity reset returns to initial measurement values. Use these functions whenever you need to begin a new measurement session or clear previous readings."
-            modalName = "Reset measurement"
-            break
+            case "W":
+                modalText = "Power is the rate at which energy is used or produced. Think of it like the overall strength of your device or how much work it can do at once. Just like a car's horsepower tells you how powerful the engine is, electrical power tells you how much electrical \"strength\" is being used. It's measured in watts (W) or kilowatts (KW).";
+                modalName = "Power";
+                break;
+            case "A":
+                modalText = "Current is the flow of electricity, similar to water flowing through a pipe. It tells you how much electricity is moving through your device at any moment. The more current flowing, the more electrons are moving through the circuit. It's measured in amperes or amps (A).";
+                modalName = "Current";
+                break;
+            case "V":
+                modalText = "Voltage is like electrical pressure or force. It's what pushes the electricity through your device, similar to how water pressure pushes water through pipes. Higher voltage means a stronger \"push\" of electricity. It's measured in volts (V).";
+                modalName = "Voltage";
+                break;
+            case "remote":
+                modalText = "Using these buttons you can control device. You must have visual with the device to see what you are doing.";
+                modalName = "Remote control";
+                break;
+            case "reset":
+                modalText = "Tap any reset button to clear its respective measurement and start fresh. The Time reset returns the timer to zero, Energy reset clears all accumulated usage data, and Capacity reset returns to initial measurement values. Use these functions whenever you need to begin a new measurement session or clear previous readings.";
+                modalName = "Reset measurement";
+                break;
         }
         
         $f7.dialog.alert(modalText, modalName)
 	}
 		
 	$onMounted(() => {
-        // setTimeout(() => {
-        //     // window.location.href = "/settings.html"
-        //     $f7router.navigate('/settings')
-        // }, 1000);
+        Logger.log("Home page mounted");
 
+        // Initialize AppManager
+        const appMgr = AppManager.getInstance();
+        const $$ = Dom7;
+        
 	    let remoteControlButtonsIds = ["btnSetup", "btnMinus", "btnPlus", "btnEnter", "btnReset"]
 	    
+        // Setup remote control buttons
         remoteControlButtonsIds.filter(id => id !== "btnReset").forEach(entry => {
-            $$("#"+entry).on("click", (entry)=>{
-                sendUartCommand(entry.target.id)
+            $$("#"+entry).on("click", function() {
+                sendUartCommand(this.id)
             })
         });
 
+        // Setup screen lock checkbox
         $$('#keep-screen').prop('checked', keepScreenOn);
         $$('#keep-screen').on('change', function(){
             keepScreenOn = this.checked
+            SettingsManager.set('screenOn', keepScreenOn)
         })
         
+        // Setup menu links
         $$('#about-me').on('click', () => {
             app.OpenUrl('http://www.bukys.eu/me/start')
         })
@@ -378,6 +388,7 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
             $f7.dialog.alert('Tap hold fired!');
         });
         
+        // Setup reset button with action menu
         $$('#btnReset').on('click', () => {
             $f7.actions.create({ buttons: [
                 [// First Group
@@ -410,18 +421,32 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
         })
         
         $$('#disconnect-button').css('display', 'none');
+
+        var panel = $f7.panel.create({
+            el: '.panel-left',
+            on: {
+                opened: function () {
+                    Logger.log("Left panel opened");
+                },
+                closed: function () {
+                    Logger.log("Left panel closed");
+                },
+            }
+        })
 	
-        // Open device selection window and pupulate found BLE devices
+        // Create device selection popup
 		connectPopup = $f7.popup.create({
             el: '.ble-devices-available-popup',
             swipeToClose: true,
             push: true,
     		on: {
-    		  //  updateIntervalTimer: 0,
                 opened: function () {
                     Logger.log("Showing list of available BLE devices")
                     
-                    ble.SetOnDevice(function(name, address, bonded, rssi, data) {
+                    const appMgr = AppManager.getInstance();
+                    const bleMgr = appMgr.bleManager;
+                    
+                    bleMgr.ble.SetOnDevice(function(name, address, bonded, rssi, data) {
                         if (name) {
                             const SignalLevel = (rssi) => {
                                 if (rssi <= -95) return "none";
@@ -454,8 +479,8 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
                             
                             // Add new device if not found
                             if (!deviceFound) {
-                                BLEDevicesList.push(newDevice); // add to the end
-                                // BLEDevicesList.unshift(newDevice); // add to the begining.
+                                BLEDevicesList.push(newDevice);
+                                Logger.log("New BLE device found: " + newDevice.name + " (" + newDevice.mac + ")");
                             }
                             
                             // Remove devices not seen in the last 10 seconds
@@ -465,27 +490,31 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
                             $update();
                         }
                     });
-                    
 
-                    ble.SetOnConnect( function(){
-                        app.ShowPopup( "Connected!" );
-                    });
-                    ble.StartScan();
+                    bleMgr.ble.StartScan();
                 },
                 closed: function () {
-                    console.log("Stop BLE scanning")
-                    // clearInterval(updateIntervalTimer);
-                    ble.StopScan();
+                    Logger.log("Stopping BLE scanning");
+                    const appMgr = AppManager.getInstance();
+                    const bleMgr = appMgr.bleManager;
+                    // Delay stopping scan to avoid interrupting connection
+                    // setTimeout(() => {
+                        if (!appMgr.isConnected) {
+                            bleMgr.ble.StopScan();
+                        }
+                    // }, 500);
                 },
             }
         });
         
+        // Listen for BLE data updates from AppManager
         F7Evt.on("EvtBleDataAvailable", function(page) {
             $$('#power-value').html(page.Pwr)
             $$('#current-value').html(page.Cur)
             $$('#voltage-value').html(page.Vol)
         })
         
+        // Listen for remote control button enable/disable events
         F7Evt.on("EvtEnableAllRemoteControlButtons", function() {
             $$('#connect-button').css('display', 'none');
             $$('#disconnect-button').css('display', 'block');
@@ -501,9 +530,10 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
                 $$("#"+entry).addClass("disabled")
             });
         })
-        
 
-        //Auto updater
+        /**
+         * Auto-update checker - downloads latest APK if available
+         */
         const UpdaterRootURL = "http://bukys.eu/android/";
         const localFileName = "recent.apk";
         
@@ -624,7 +654,7 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
                         }
         
                         if (serverVersion > localVersion) {
-                            logger.warn("Update check: new version available: " + localVersion + " -> " + serverVersion)
+                            Logger.warn("Update check: new version available: " + localVersion + " -> " + serverVersion)
                             $$('#main-menu-badge').addClass("badge");
                             $$('#li-upgrade-available').css('display', 'block');
                             $$('#a-upgrade-available').off('click').on('click', function () {
@@ -647,6 +677,7 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
             }
         };
         
+        // Check for updates after 5 seconds
         setTimeout(function () {
             isUpdateAvailable();
         }, 5 * 1000);
@@ -654,8 +685,8 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
 	}) //END $onMounted
 	
 	$onBeforeUnmount(() => {
-
-        // crt.destroy()
+        // Cleanup logic
+        Logger.log("Home page before unmount - cleaning up");
 	})
 	
 	return $render;

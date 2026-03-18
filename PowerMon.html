@@ -99,368 +99,195 @@
 <script src="settings-manager.js"></script>
 <script src="database-manager.js"></script>
 <script src="service-manager.js"></script>
+<script src="BLEManager.js"></script>
+<script src="DataProcessor.js"></script>
+<script src="UtilityHelper.js"></script>
+<script src="AppManager.js"></script>
+<!-- <script src="UIController.js"></script> -->
 <script src="js/utils.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/simulator.js"></script>
 <script src="chart.js"></script>
 <script>
-
     //Serv files from internal web server so xhr requests work.
     cfg.Serv;
-    app.EnableBackKey( false );
-    
-    //BLE initialization
-    app.LoadPlugin( "BluetoothLE" );
-    ble = app.CreateBluetoothLE();
-    ble.SetUartIds(
-        "0000FFE0-0000-1000-8000-00805F9B34FB",  //Svca
-        "0000FFE2-0000-1000-8000-00805F9B34FB",  //Tx
-        "0000FFE1-0000-1000-8000-00805F9B34FB"   //Rx
-    )
-    ble.SetUartMode( "Hex" );
-    
-    // // Initialize service manager for background BLE service
-    // var serviceManager = new ServiceManager();
+    app.EnableBackKey(false);
 
-    
+    // Global event bus and framework7 app reference
     var F7Evt = new Framework7.Events();
     var $$ = Dom7;
     var webapp;
-    // Initialize database manager
-    var dbManager
-    // var Logger
 
-    //Start the app.
-    function OnStart() {
-        Logger.log("Starting Framework7 application")
-        
-        webapp = new Framework7({
-            name: "PowerMon",
-            el: '#PowerMonAppDiv',
-            theme: 'md',
-            routes: [{
-                path: '/',
-                componentUrl: './home.html',
-            }, {
-                path: '/details',
-                componentUrl: './details.html',
-            }, {
-                path: '/chart',
-                componentUrl: './chart.html',
-            }, {
-                path: '/settings',
-                componentUrl: './settings.html',
-            }, {
-                path: '/about',
-                componentUrl: './about.html',
-            },
-            {
-                path: '/debug',
-                componentUrl: './debug.html',
-            },],
-            // App root methods
-            methods: {
-                helloWorld: function() {
-                    webapp.dialog.alert('Hello World!');
-                },
-            },
-            view: {
-                pushState: true,
-            },
-            touch: {
-                tapHold: true,
-                mdTouchRipple: true,
-            },
-            tapHold: true,
-        });
-        
-
-        dbManager = new DatabaseManager();
-        Logger.log("Database manager loaded")
-        
-        webapp.views.create('.view-main', {
-            url: '/'
-        })
-    }
-    
-    //Theme management
-    const toggleTheme = () => {
-        if ($$('html').hasClass('light')) {
-            applyTheme('dark')
-        } else {
-            applyTheme('light')
-        }
-    };
-    const applyTheme = (theme) => {
-        if (theme === 'light' || theme === 'dark'){
-            $$('html').removeClass('dark light').addClass(theme);
-            Logger.log("Applying theme " + theme)
-        }
-        else {
-            let autoTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? 'dark' : 'light'
-            $$('html').removeClass('dark light').addClass(autoTheme);
-            Logger.log("Automatic theme is " + autoTheme)
-        }
-    }
-    window.applyTheme = applyTheme;
-    applyTheme( SettingsManager.get("theme") );
-    
-    //BLE stuff
-    let sim = new PowerMeterSimulator()
-    let BLEParser = new ProtocolParser()
-    let connectPopup
-	var stateBleConnected = false
-	let runtime = {};
-	let BufferUart="";      // temporary buffer for UART data
- 	let deviceType = "";    // device type according to UART data
-	
-	const onBleDataAvailable = (page) =>{
-        F7Evt.emit("EvtBleDataAvailable", page)
-	};
-    
-    const sendUartCommand = (actionName) => {
-        let hex = null
-        let inSim = false
-        if(RemoteActionCodes.hasOwnProperty(actionName)){
-            hex = RemoteActionCodes[actionName].hex
-            Logger.log("Sending remote action name: " + actionName)
-        }
-        else
-            hex = null
-        if(!hex)
-            return webapp.dialog.alert("Incorrect command", "Error")
-        
-        if(sim.Status()){
-            switch(actionName){
-                case "rstTime":
-                    sim.ResetTime()
-                    break
-                case "rstEne":
-                    sim.ResetEnergy()
-                    break
-                case "rstCap":
-                    sim.ResetCapacity()
-                    break
-            }
-        }
-        else
-            ble.SendUart(hex)
-            Logger.log("UART sent " + hex)
-        
-        return
-	}
-
-    const computePower = (data) => {
-        const method = SettingsManager.get('powerCalcMethod') || 'measured';
-        const volts = parseFloat(data.Vol) || 0;
-        const amps = parseFloat(data.Cur) || 0;
-        const pf = parseFloat(data.PowFact) || 0;
-
-        switch (method) {
-            case 'VA':
-                return volts * amps;
-            case 'VAPF':
-                return pf ? volts * amps * pf : volts * amps;
-            case 'measured':
-            default:
-                return parseFloat(data.Pwr) || 0;
-        }
-    };
-
-    const OnBleUartReceive = (data) => {
-        if (data == 'FF' && BufferUart.length >=36*2 ) {
-            if( deviceType != BLEParser.getDeviceType()){
-                deviceType = BLEParser.getDeviceType()
-                Logger.log("Detected device type code " + deviceType)
-            }
-            
-            switch(BufferUart.substring(4, 6)){
-                case '01':  //Data
-                    var parsed = BLEParser.ParseUartData(BufferUart, deviceType)
-                    parsed.Pwr = computePower(parsed)
-                    onBleDataAvailable(parsed)
-                    // Save to database
-                    saveToDatabase(parsed);
-                    break;
-                case '11':  //Command
-                    app.Alert("command");
-                    break;
-                case '02':  //Acknowledgement
-                    app.Alert("ack");
-                    break;
-            }
-            BufferUart = data;
-        }
-        else
-            BufferUart += data
-    };
-    
-    // Save measurement to database
-    const saveToDatabase = (data) => {
-        if (!dbManager || !dbManager.db) {
-            Logger.error("DatabaseManager is not defined")
-            return;
-        }
-        
-        var timestamp = Date.now();
-        
-        try {
-            dbManager.db.ExecuteSql(
-                `INSERT OR REPLACE INTO measurements 
-                (timestamp, voltage, current, power, capacity, energy, 
-                 d_minus, d_plus, frequency, power_factor, temperature, device_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    timestamp,
-                    data.Vol || 0,
-                    data.Cur || 0,
-                    data.Pwr || 0,
-                    data.Cap || 0,
-                    data.Ene || 0,
-                    data.DMinus || 0,
-                    data.DPlus || 0,
-                    data.Freq || 0,
-                    data.PowFact || 0,
-                    data.Temp || 0,
-                    deviceType || "unknown"
-                ]
-            );
-
-        } catch(e) {
-            Logger.error("Database save error: "+ e);
-        }
-    };
-
-	const onBleDeviceSelected = (adr, screenLock) => {
-        const keepOn = !!SettingsManager.get('screenOn');
-        runtime.keepScreenOn = keepOn;
-        app.PreventScreenLock( keepOn )
-
-	    
-		if (!stateBleConnected){
-		    stateBleConnected = true
-			if (adr === '00:00:00:00:00:00'){
-			    Logger.log("Hardware simulator is starting")
-				sim.onData = onBleDataAvailable
-				sim.Start()
-			}
-			else{
-				Logger.log("Connecting to device "+ adr)
-                ble.SetOnUartReceive( OnBleUartReceive )
-				ble.Connect( adr, "UART" )
-				F7Evt.emit("EvtEnableAllRemoteControlButtons")
-			}
-		}
-		else {
-			Logger.warn("Already connected to device")
-		}
-	}
-	
-	const bleDeviceDisconnect = () => {
-        stateBleConnected = false
-        F7Evt.emit("EvtDisableAllRemoteControlButtons")
-        
-        app.PreventScreenLock(false)
-            
-        if (sim.Status()){
-            sim.Stop()
-            Logger.log("Simulator stopped")
-        }
-        else {
-            ble.Disconnect()
-            Logger.log("Device disconnected")
-            // dbManager.close()
-            // reload bluetooth
-    // 		app.SetBluetoothEnabled(false);
-    //         setTimeout(function(){
-    //           app.SetBluetoothEnabled(true);
-    //         }, 300);
-        }
-	}
-	
-	ble.SetOnDisconnect(bleDeviceDisconnect)
-
-    
-    function OnBack() {
-		if ($$('.panel-left').hasClass('panel-in')) {
-			webapp.panel.close();
-			return false;
-		}
-		else if ($$('.modal-in').length > 0) {
-			webapp.sheet.close();
-			webapp.dialog.close();
-			webapp.popup.close();
-			return false;
-		} else if (webapp.views.main.router.url == '/') {
-            webapp.dialog.confirm('Close application?', 'PowerMon', function () {
-                app.Exit();
-            });
-		} else {
-			webapp.views.main.router.back();
-		}
-	}
-    
-    const RemoteActionCodes= {
-        btnSetup:{
-            hex :   "FF,55,11,03,31,00,00,00,00,01",
-        },
-        btnMinus:{
-            hex :   "FF,55,11,03,34,00,00,00,00,0C",
-        },
-        btnPlus :{
-            hex :   "FF,55,11,03,33,00,00,00,00,03",
-        },
-        btnEnter:{
-            hex :   "FF,55,11,03,32,00,00,00,00,02",
-        },
-        
-        rstTime :{
-            hex :   "FF,55,11,03,03,00,00,00,00,53",
-        },
-        rstEne  :{
-            hex :   "FF,55,11,03,01,00,00,00,00,51",
-        },
-        rstCap  :{
-            hex :   "FF,55,11,03,02,00,00,00,00,52",
-        },
-        rstAll  :{
-            hex :   "FF,55,11,03,05,00,00,00,00,5D",
-        },
-    }
-    
-    window.settings= {
+    // Global settings for measurements (used by chart and details pages)
+    window.settings = {
         chart: {
-            show:       true,
-            duration:   60,
-            points:     116
+            show: true,
+            duration: 60,
+            points: 116
         },
-        
-        measurements : [
-            { key: 'Vol',       title: 'Voltage',       icon: "bolt",                   idx: 0, val: ['V']          },
-            { key: 'Cur',       title: 'Current',       icon: "arrow_right_arrow_left", idx: 0, val: ['A']          },
-            { key: 'Pwr',       title: 'Power',         icon: "speedometer",            idx: 0, val: ['W', 'kW']    },
-            { key: 'Cap',       title: 'Capacity',      icon: "battery_25",             idx: 0, val: ['mAh', 'Ah']  },
-            { key: 'Ene',       title: 'Energy',        icon: "sparkles",               idx: 0, val: ['Wh', 'kWh']  },
-            { key: 'DMinus',    title: 'Neg DLV *',     icon: "minus_circle",           idx: 0, val: ['V']          },
-            { key: 'DPlus',     title: 'Pos DLV *',     icon: "plus_circle",            idx: 0, val: ['V']          },
-            { key: 'Price',     title: 'kWh price',     icon: "money_dollar_circle",    idx: 0, val: ['¤/kWh']      },
-            { key: 'Cost',      title: 'Total cost',    icon: "money_dollar",           idx: 0, val: ['¤']          },
-            { key: 'Freq',      title: 'Frequency',     icon: "waveform_path",          idx: 0, val: ['Hz']         },
-            { key: 'PowFact',   title: 'Power Factor',  icon: "gauge",                  idx: 0, val: ['PF']         },
-            { key: 'Temp',      title: 'Temperature',   icon: "thermometer",            idx: 0, val: ['°C', '°F']   },
-            { key: 'Time',      title: 'Time',          icon: "timer",                  idx: 0, val: ['']           },
+
+        measurements: [
+            { key: 'Vol', title: 'Voltage', icon: "bolt", idx: 0, val: ['V'] },
+            { key: 'Cur', title: 'Current', icon: "arrow_right_arrow_left", idx: 0, val: ['A'] },
+            { key: 'Pwr', title: 'Power', icon: "speedometer", idx: 0, val: ['W', 'kW'] },
+            { key: 'Cap', title: 'Capacity', icon: "battery_25", idx: 0, val: ['mAh', 'Ah'] },
+            { key: 'Ene', title: 'Energy', icon: "sparkles", idx: 0, val: ['Wh', 'kWh'] },
+            { key: 'DMinus', title: 'Neg DLV *', icon: "minus_circle", idx: 0, val: ['V'] },
+            { key: 'DPlus', title: 'Pos DLV *', icon: "plus_circle", idx: 0, val: ['V'] },
+            { key: 'Price', title: 'kWh price', icon: "money_dollar_circle", idx: 0, val: ['¤/kWh'] },
+            { key: 'Cost', title: 'Total cost', icon: "money_dollar", idx: 0, val: ['¤'] },
+            { key: 'Freq', title: 'Frequency', icon: "waveform_path", idx: 0, val: ['Hz'] },
+            { key: 'PowFact', title: 'Power Factor', icon: "gauge", idx: 0, val: ['PF'] },
+            { key: 'Temp', title: 'Temperature', icon: "thermometer", idx: 0, val: ['°C', '°F'] },
+            { key: 'Time', title: 'Time', icon: "timer", idx: 0, val: [''] },
         ],
-        
+
         default: {
             connect: false,
             device: '00:00:00:00:00:00'
         },
-        
+
         devices: []
-    };  
+    };
+
+    // Remote action codes for device control
+    const RemoteActionCodes = {
+        btnSetup: {
+            hex: "FF,55,11,03,31,00,00,00,00,01",
+        },
+        btnMinus: {
+            hex: "FF,55,11,03,34,00,00,00,00,0C",
+        },
+        btnPlus: {
+            hex: "FF,55,11,03,33,00,00,00,00,03",
+        },
+        btnEnter: {
+            hex: "FF,55,11,03,32,00,00,00,00,02",
+        },
+
+        rstTime: {
+            hex: "FF,55,11,03,03,00,00,00,00,53",
+        },
+        rstEne: {
+            hex: "FF,55,11,03,01,00,00,00,00,51",
+        },
+        rstCap: {
+            hex: "FF,55,11,03,02,00,00,00,00,52",
+        },
+        rstAll: {
+            hex: "FF,55,11,03,05,00,00,00,00,5D",
+        },
+    }
+
+    /**
+     * Main application initialization
+     * Called when page loads - initializes AppManager and Framework7
+     */
+    async function OnStart() {
+        try {
+            Logger.log("Starting PowerMon application");
+            
+            // Get AppManager singleton
+            const appMgr = AppManager.getInstance();
+            
+            // AppManager initializes itself with all components
+            // IMPORTANT: Must await async initialization
+            const initialized = await appMgr.initialize();
+            
+            if (!initialized) {
+                Logger.error("Failed to initialize AppManager");
+                return;
+            }
+            
+            // Get webapp reference for global use
+            webapp = appMgr.getApp();
+
+            Logger.log("PowerMon application started successfully");
+        } catch (err) {
+            Logger.error("OnStart error: " + err);
+            console.error("PowerMon startup failed:", err);
+            alert("PowerMon startup failed: " + err);
+        }
+    }
+
+    /**
+     * Global theme toggle - switches between light/dark modes
+     */
+    const toggleTheme = () => {
+        AppManager.getInstance().toggleTheme();
+    };
+
+    /**
+     * Apply theme - light, dark, or auto
+     * @param {string} theme - Theme to apply
+     */
+    const applyTheme = (theme) => {
+        AppManager.getInstance().applyTheme(theme);
+    };
+    window.applyTheme = applyTheme;
+
+    /**
+     * Handle device selection - connect to BLE device or simulator
+     * @param {string} adr - Device address (MAC or 00:00:00:00:00:00 for simulator)
+     */
+    const onBleDeviceSelected = (adr) => {
+        AppManager.getInstance().connectToDevice(adr);
+    };
+
+    /**
+     * Disconnect from current device
+     */
+    const bleDeviceDisconnect = () => {
+        AppManager.getInstance().disconnectFromDevice();
+    };
+
+    /**
+     * Send UART command to device
+     * @param {string} actionName - Action name (btnSetup, btnMinus, etc.)
+     */
+    const sendUartCommand = (actionName) => {
+        const appMgr = AppManager.getInstance();
+        
+        if (!RemoteActionCodes.hasOwnProperty(actionName)) {
+            if (webapp) {
+                webapp.dialog.alert("Incorrect command", "Error");
+            }
+            return;
+        }
+
+        appMgr.sendRemoteCommand(actionName);
+    };
+
+    const OnUartReceived = (data) => {
+        Logger.log("UART data received: " + data);
+        // Data processing is handled in BLEManager callback, so no need to do anything here
+        // AppManager.getInstance().OnUartReceived(data);
+    };
+
+    /**
+     * Back button handler - manages navigation and app exit
+     */
+    function OnBack() {
+        if ($$('.panel-left').hasClass('panel-in')) {
+            webapp.panel.close();
+            return false;
+        }
+        else if ($$('.modal-in').length > 0) {
+            webapp.sheet.close();
+            webapp.dialog.close();
+            webapp.popup.close();
+            return false;
+        } else if (webapp.views.main.router.url == '/') {
+            webapp.dialog.confirm('Close application?', 'PowerMon', function () {
+                app.Exit();
+            });
+        } else {
+            webapp.views.main.router.back();
+        }
+    }
 </script>
 </head>
-<body onload="OnStart()">
+<body onload="OnStart().catch(err => { console.error('Startup error:', err); alert('Error: ' + err); })">
 <div id="PowerMonAppDiv">
     <!-- /END Left side panel -->
     <div class="view view-main"></div>

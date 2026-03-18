@@ -111,8 +111,12 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
     let chartContext = new ChartControl();
     let currentMode = 'live'; // 'live' or 'historical'
     let refreshInterval = null;
+    const appMgr = AppManager.getInstance();
+    const dbMgr = appMgr.getDatabase();
     
-    // Define the event handler that uses chartContext
+    /**
+     * Handle new BLE data for live chart updates
+     */
     const handleBleData = (page) => {
         if (chartContext && currentMode === 'live') {
             chartContext.dataAdd(page.Vol, page.Cur, page.Pwr);
@@ -120,47 +124,61 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
         }
     };
     
+    /**
+     * Load historical data from database for specified range
+     */
     const loadHistoricalData = async (range) => {
-        if (!dbManager) return;
+        if (!dbMgr) {
+            Logger.error('Database not available');
+            return;
+        }
         
         let data = [];
         const dataInfoEl = document.getElementById('data-info');
         
-        switch(range) {
-            case '1h':
-                data = await dbManager.getLastHours(1);
-                break;
-            case '3h':
-                data = await dbManager.getLastHours(3);
-                break;
-            case '6h':
-                data = await dbManager.getLastHours(6);
-                break;
-            case '12h':
-                data = await dbManager.getLastHours(12);
-                break;
-            case '24h':
-                data = await dbManager.getLastHours(24);
-                break;
-            case '7d':
-                data = await dbManager.getLastDays(7);
-                break;
-            case '30d':
-                data = await dbManager.getLastDays(30);
-                break;
-            default:
-                data = dbManager.getLatestMeasurements(100);
+        try {
+            switch(range) {
+                case '1h':
+                    data = await dbMgr.getLastHours(1);
+                    break;
+                case '3h':
+                    data = await dbMgr.getLastHours(3);
+                    break;
+                case '6h':
+                    data = await dbMgr.getLastHours(6);
+                    break;
+                case '12h':
+                    data = await dbMgr.getLastHours(12);
+                    break;
+                case '24h':
+                    data = await dbMgr.getLastHours(24);
+                    break;
+                case '7d':
+                    data = await dbMgr.getLastDays(7);
+                    break;
+                case '30d':
+                    data = await dbMgr.getLastDays(30);
+                    break;
+                default:
+                    data = dbMgr.getLatestMeasurements(100);
+            }
+        } catch (e) {
+            Logger.error('Error loading historical data: ' + e);
+            if (dataInfoEl) {
+                dataInfoEl.textContent = 'Error loading data';
+            }
+            return;
         }
         
         // Clear chart and load historical data
         chartContext.dataClear();
         
-        if (data.length > 0) {
+        if (data && data.length > 0) {
             data.forEach(item => {
                 const date = new Date(item.timestamp);
-                const timeStr = addZero(date.getHours()) + ':' + 
-                               addZero(date.getMinutes()) + ':' + 
-                               addZero(date.getSeconds());
+                const timeStr = UtilityHelper.padZero(date.getHours()) + ':' + 
+                               UtilityHelper.padZero(date.getMinutes()) + ':' + 
+                               UtilityHelper.padZero(date.getSeconds());
                 chartContext.dataAddWithTime(item.Vol, item.Cur, item.Pwr, timeStr);
             });
             
@@ -172,6 +190,8 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
                 const end = new Date(data[data.length - 1].timestamp);
                 dataInfoEl.textContent = `Showing ${data.length} points from ${start.toLocaleString()} to ${end.toLocaleString()}`;
             }
+            
+            Logger.log(`Historical data loaded: ${data.length} points from ${range}`);
         } else {
             if (dataInfoEl) {
                 dataInfoEl.textContent = 'No data available for selected range';
@@ -179,6 +199,9 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
         }
     };
     
+    /**
+     * Update data information display
+     */
     const updateDataInfo = () => {
         const dataInfoEl = document.getElementById('data-info');
         if (dataInfoEl && chartContext.chartObject) {
@@ -190,6 +213,8 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
     };
 
     $onMounted(() => {
+        Logger.log("Chart page mounted");
+
         app.SetOrientation( "Landscape" );
         app.SetScreenMode( "Full" );
         
@@ -283,8 +308,8 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
         if (chartContext) {
             chartContext.destroy();
         }
-        
-        // Database is managed globally, no need to close here
+
+        Logger.log("Chart page before unmount - resources cleaned up");
     });
     
     return $render;

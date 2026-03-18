@@ -1,55 +1,101 @@
-/*
- * BLE Service - Background service for reading BLE data from power meter
- * This service runs independently and saves data to SQLite database
+/**
+ * BleService.js - Background service for BLE power meter data collection
+ * 
+ * This service runs in the background and handles:
+ * - BLE device connection and UART communication
+ * - Measurement data reception and parsing
+ * - Database persistence
+ * - Inter-process messaging with main app
+ * 
+ * Architecture:
+ * - Uses BLEManager for all BLE operations
+ * - Uses DatabaseManager for data persistence
+ * - Uses DataProcessor for power calculations
+ * - Communicates with main app via JSON messages
+ * 
+ * @requires BLEManager.js
+ * @requires DatabaseManager.js
+ * @requires DataProcessor.js
+ * @requires js/parser.js (ProtocolParser class)
  */
 
-// Global variables for the service
-var ble = null;
-var db = null;
-var BufferUart = "";
-var deviceType = "";
-var isConnected = false;
-var currentDeviceAddress = "";
+// ─────────────────────────────────────────────────────────────────────────
+// DEPENDENCIES & INITIALIZATION
+// ─────────────────────────────────────────────────────────────────────────
 
-// Load required scripts
+// Load required modules before service starts
 app.LoadScript("js/parser.js");
+app.LoadScript("BLEManager.js");
+app.LoadScript("DatabaseManager.js");
+app.LoadScript("DataProcessor.js");
 
-// Service initialization
+// Service-level variables
+const ServiceState = {
+    bleManager: null,
+    dbManager: null,
+    isRunning: false,
+    powerCalcMethod: 'measured'
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// SERVICE ENTRY POINTS
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Service start callback - called when service is first started
+ */
 function OnStart() {
-    app.ShowPopup("PowerMon Service Started");
-    
-    // Initialize BLE
-    app.LoadPlugin("BluetoothLE");
-    ble = app.CreateBluetoothLE();
-    ble.SetUartIds(
-        "0000FFE0-0000-1000-8000-00805F9B34FB",  //Svc
-        "0000FFE2-0000-1000-8000-00805F9B34FB",  //Tx
-        "0000FFE1-0000-1000-8000-00805F9B34FB"   //Rx
-    );
-    ble.SetUartMode("Hex");
-    
-    // Initialize database
-    // initDatabase();
-    
-    // Set up BLE callbacks
-    ble.SetOnUartReceive(OnBleUartReceive);
-    ble.SetOnDisconnect(OnBleDisconnect);
-    
-    // Listen for messages from main app
-    app.SetOnMessage(OnMessage);
-    
-    // Start periodic cleanup (every hour)
-    setInterval(cleanupOldData, 3600000);
+    try {
+        app.ShowPopup("PowerMon Service Started");
+
+        // Initialize components
+        ServiceState.bleManager = BLEManager.getInstance();
+        ServiceState.dbManager = new DatabaseManager();
+
+        // Configure BLE event handlers
+        ServiceState.bleManager.setOnUartData(handleUartData);
+        ServiceState.bleManager.setOnConnected(handleDeviceConnected);
+        ServiceState.bleManager.setOnDisconnected(handleDeviceDisconnected);
+        ServiceState.bleManager.setOnError(handleError);
+
+        // Initialize BLE hardware
+        if (!ServiceState.bleManager.initialize()) {
+            throw new Error("BLE initialization failed");
+        }
+
+        // Set up message handler for communication with main app
+        app.SetOnMessage(handleMainAppMessage);
+
+        // Start periodic cleanup of old data (every hour)
+        setInterval(cleanupOldData, 3600000);
+
+        ServiceState.isRunning = true;
+        Logger.log("BleService initialized successfully");
+    } catch (e) {
+        Logger.error("BleService startup error: " + e);
+        app.ShowPopup("Service Error: " + e);
+    }
 }
 
+/**
+ * Service stop callback - called when service is stopped
+ */
 function OnStop() {
-    if (isConnected && ble) {
-        ble.Disconnect();
+    try {
+        if (ServiceState.bleManager && ServiceState.bleManager.getConnectionState()) {
+            ServiceState.bleManager.disconnect();
+        }
+
+        if (ServiceState.dbManager) {
+            ServiceState.dbManager.close();
+        }
+
+        ServiceState.isRunning = false;
+        app.ShowPopup("PowerMon Service Stopped");
+        Logger.log("BleService stopped");
+    } catch (e) {
+        Logger.error("BleService shutdown error: " + e);
     }
-    if (db) {
-        db.Close();
-    }
-    app.ShowPopup("PowerMon Service Stopped");
 }
 
 // Initialize SQLite database
@@ -78,24 +124,126 @@ function obsolete_initDatabase() {
     );
 }
 
-// Handle messages from main app
-function OnMessage(msg) {
-    var cmd = JSON.parse(msg);
-    
-    switch(cmd.action) {
-        case "connect":
-            connectToDevice(cmd.address);
-            break;
-        case "disconnect":
-            disconnectDevice();
-            break;
-        case "getStatus":
-            sendStatus();
-            break;
-        case "clearData":
-            clearAllData();
-            break;
+// ─────────────────────────────────────────────────────────────────────────
+// MESSAGE HANDLERS - Communication with main app
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Handle messages from main app
+ * Supported commands:
+ *   - connect: { action: "connect", address: "MAC:ADDRESS" }
+ *   - disconnect: { action: "disconnect" }
+ *   - getStatus: { action: "getStatus" }
+ *   - clearData: { action: "clearData" }
+ * 
+ * @param {String} msg JSON message from main app
+ */
+function handleMainAppMessage(msg) {
+    try {
+        const cmd = JSON.parse(msg);
+        Logger.log("Service received: " + cmd.action);
+
+        switch (cmd.action) {
+            case "connect":
+                handleConnectCommand(cmd);
+                break;
+
+            case "disconnect":
+                handleDisconnectCommand();
+                break;
+
+            case "getStatus":
+                sendServiceStatus();
+                break;
+
+            case "clearData":
+                handleClearDataCommand();
+                break;
+
+            case "setPowerCalcMethod":
+                ServiceState.powerCalcMethod = cmd.method || 'measured';
+                Logger.log("Power calculation method set to: " + ServiceState.powerCalcMethod);
+                break;
+
+            default:
+                Logger.warn("Unknown command: " + cmd.action);
+        }
+    } catch (e) {
+        Logger.error("Message handling error: " + e);
     }
+}
+
+/**
+ * Handle connect command
+ * @param {Object} cmd Command object with address
+ * @private
+ */
+function handleConnectCommand(cmd) {
+    if (!cmd.address) {
+        Logger.error("Connect command missing device address");
+        return;
+    }
+
+    if (!ServiceState.bleManager.connect(cmd.address)) {
+        sendServiceMessage({
+            type: "status",
+            connected: false,
+            error: "Connection failed"
+        });
+    }
+}
+
+/**
+ * Handle disconnect command
+ * @private
+ */
+function handleDisconnectCommand() {
+    if (!ServiceState.bleManager.disconnect()) {
+        Logger.warn("Not connected, cannot disconnect");
+    }
+}
+
+/**
+ * Handle clear data command
+ * @private
+ */
+function handleClearDataCommand() {
+    try {
+        const success = ServiceState.dbManager.clearAll();
+        sendServiceMessage({
+            type: "dataClear",
+            success: success
+        });
+    } catch (e) {
+        Logger.error("Clear data error: " + e);
+    }
+}
+
+/**
+ * Send message back to main app
+ * @param {Object} data Message object
+ * @private
+ */
+function sendServiceMessage(data) {
+    try {
+        app.SendMessage(JSON.stringify(data));
+    } catch (e) {
+        Logger.error("Send message error: " + e);
+    }
+}
+
+/**
+ * Send current service status to main app
+ * @private
+ */
+function sendServiceStatus() {
+    sendServiceMessage({
+        type: "status",
+        running: ServiceState.isRunning,
+        connected: ServiceState.bleManager.getConnectionState(),
+        address: ServiceState.bleManager.getConnectedDeviceAddress(),
+        deviceType: ServiceState.bleManager.getDeviceType()
+    });
 }
 
 // Connect to BLE device
@@ -136,18 +284,17 @@ function OnBleDisconnect() {
 // Handle incoming BLE UART data
 function OnBleUartReceive(data) {
     if (data == 'FF' && BufferUart.length >= 36*2) {
-        // Initialize parser if needed
-        if (typeof BLEParser === 'undefined') {
-            BLEParser = new ProtocolParser();
-        }
+        // Use AppManager's parser instance
+        const appMgr = AppManager.getInstance();
+        const parser = appMgr.parser;
         
-        if (deviceType != BLEParser.getDeviceType()) {
-            deviceType = BLEParser.getDeviceType();
+        if (deviceType != parser.getDeviceType()) {
+            deviceType = parser.getDeviceType();
         }
         
         switch(BufferUart.substring(4, 6)) {
             case '01':  // Data packet
-                var parsed = BLEParser.ParseUartData(BufferUart, deviceType);
+                var parsed = parser.ParseUartData(BufferUart, deviceType);
                 saveToDatabase(parsed);
                 
                 // Send data to main app

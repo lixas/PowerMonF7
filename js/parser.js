@@ -37,7 +37,7 @@ class ProtocolParser{
 
         meter.Vol       = parseInt(bfr.substring( 8, 14), 16)/100
         meter.Cur       = parseInt(bfr.substring(14, 20), 16)/100
-        meter.Pwr       = (meter.Vol * meter.Cur).toFixed(3)
+        meter.Pwr       = parseFloat((meter.Vol * meter.Cur).toFixed(3))
         meter.Cap       = parseInt(bfr.substring(20, 26), 16)
         meter.Ene       = parseInt(bfr.substring(26, 34), 16)/100
         meter.DMinus    = parseInt(bfr.substring(34, 38), 16)/100
@@ -67,7 +67,7 @@ class ProtocolParser{
         meter.DMinus    = null
         meter.DPlus     = null
         meter.Price     = parseInt(bfr.substring(34, 40), 16)/100
-        meter.Cost      = (meter.Price * meter.Ene).toFixed(3)
+        meter.Cost      = parseFloat((meter.Price * meter.Ene).toFixed(3))
         meter.Freq      = parseInt(bfr.substring(40, 44), 16)/10
         meter.PowFact   = parseInt(bfr.substring(44, 48), 16)/1000
         meter.Temp      = parseInt(bfr.substring(50, 52), 16)

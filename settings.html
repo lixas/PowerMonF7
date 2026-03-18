@@ -275,201 +275,247 @@
 export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
     
     let settingsVals = window.settings;
+    const appMgr = AppManager.getInstance();
+    const $$ = Dom7;
   
+    /**
+     * Apply screen lock setting when toggled
+     */
     const ApplyScreenLockSetting = (enabled) => {
         SettingsManager.set('screenOn', enabled ? 1 : 0);
-        if (window.runtime) {
-            window.runtime.keepScreenOn = enabled;
-        }
-        if (window.stateBleConnected) {
+        if (appMgr.isConnected) {
             app.PreventScreenLock(enabled);
         }
     };
 
+    /**
+     * Handle screen lock checkbox change
+     */
     const KeepScreenOnChange = (evt) =>{
         ApplyScreenLockSetting(evt.target.checked);
     }
 
-  const showChartChange = (evt) => {
-    settingsVals.chart.show = evt.target.checked;
-  }
-
-  $onMounted(() => {
-    const screenOn = !!SettingsManager.get('screenOn');
-    const screenCheckbox = document.getElementById('keep-screen-setting');
-    if (screenCheckbox) screenCheckbox.checked = screenOn;
-
-    const powerSelect = document.getElementById('power-calc-method');
-    if (powerSelect) powerSelect.value = SettingsManager.get('powerCalcMethod');
-
-    const themeSelect = document.querySelector('select[name="themeChooser"]');
-    if (themeSelect) themeSelect.value = SettingsManager.get('theme');
-  });
-
-  const powerChange = (evt) => {
-    SettingsManager.set('powerCalcMethod', evt.target.value);
-  }
-
-  const themeChooserChange = (evt) => {
-    SettingsManager.set('theme', evt.target.value);
-    window.applyTheme(evt.target.value);
-  }
-
-  const chartDurationSecondsChange = (evt) => {
-    SettingsManager.set('chart.duration', parseInt(evt.target.value));
-  }
-
-  const ResetDefaultClick = () => {
-    $f7.dialog.confirm('Are you sure you want to reset all settings to defaults?', 
-      function () {
-        SettingsManager.reset();
-        window.location.reload();
-      }
-    );
-  }
-  
-
-  
-  const clearOldDataClick = () => {
-    $f7.dialog.confirm('Delete all measurements older than 30 days?', 
-      'Clear Old Data',
-      function () {
-        if (dbManager) {
-          const deleted = dbManager.deleteOlderThan(30);
-          if (deleted) {
-            $f7.toast.create({
-              text: 'Old data cleared successfully',
-              closeTimeout: 2000,
-            }).open();
-            updateDbInfo();
-          } else {
-            $f7.toast.create({
-              text: 'Error clearing old data',
-              closeTimeout: 2000,
-            }).open();
-          }
-        }
-      }
-    );
-  }
-  
-  const clearAllDataClick = () => {
-    $f7.dialog.confirm('Delete ALL measurements from database? This cannot be undone!', 
-      'Clear All Data',
-      function () {
-        if (dbManager) {
-          const cleared = dbManager.clearAll();
-          if (cleared) {
-            $f7.toast.create({
-              text: 'All data cleared successfully',
-              closeTimeout: 2000,
-            }).open();
-            updateDbInfo();
-          } else {
-            $f7.toast.create({
-              text: 'Error clearing data',
-              closeTimeout: 2000,
-            }).open();
-          }
-        }
-      }
-    );
-  }
-  
-  updateDbInfo = async () => {
-   if (dbManager) {
-      const count = await dbManager.getCount();
-      const range = await dbManager.getDataRange();
-      
-      let infoText = `${count.toLocaleString()} measurements stored`;
-      
-      if (range && range.start && range.end) {
-        const startDate = new Date(range.start);
-        const endDate = new Date(range.end);
-        const days = Math.floor((range.end - range.start) / (1000 * 60 * 60 * 24));
-        infoText += `<br>From ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()} (${days} days)`;
-      }
-      
-      const dbInfoEl = document.getElementById('db-info');
-      if (dbInfoEl) {
-        dbInfoEl.innerHTML = infoText;
-      }
+    /**
+     * Handle power calculation method change
+     */
+    const powerChange = (evt) => {
+        SettingsManager.set('powerCalcMethod', evt.target.value);
+        Logger.log('Power calculation method changed to: ' + evt.target.value);
     }
-  }
-  
-    $onMounted(() => {
-      
-      // Update database info
-      setTimeout(async () => {
-        updateDbInfo();
-      }, 500);
 
-      let sortPopup = $f7.popup.create({
+    /**
+     * Handle theme change - delegates to AppManager
+     */
+    const themeChooserChange = (evt) => {
+        appMgr.applyTheme(evt.target.value);
+    }
+
+    /**
+     * Initialize component - load settings from SettingsManager
+     */
+    const initializeSettings = () => {
+        const screenOn = !!SettingsManager.get('screenOn');
+        const screenCheckbox = document.getElementById('keep-screen-setting');
+        if (screenCheckbox) screenCheckbox.checked = screenOn;
+
+        const powerSelect = document.getElementById('power-calc-method');
+        if (powerSelect) powerSelect.value = SettingsManager.get('powerCalcMethod') || 'measured';
+
+        const themeSelect = document.querySelector('select[name="themeChooser"]');
+        if (themeSelect) themeSelect.value = SettingsManager.get('theme') || 'auto';
+    };
+
+    const showChartChange = (evt) => {
+        SettingsManager.set('chart.show', evt.target.checked);
+        Logger.log('Show chart setting changed to: ' + evt.target.checked);
+    }
+
+    /**
+     * Handle chart duration change
+     */
+    const chartDurationSecondsChange = (evt) => {
+        SettingsManager.set('chart.duration', parseInt(evt.target.value));
+        Logger.log('Chart duration changed to: ' + evt.target.value + ' seconds');
+    }
+
+    /**
+     * Reset all settings to defaults
+     */
+    const ResetDefaultClick = () => {
+        $f7.dialog.confirm('Are you sure you want to reset all settings to defaults?', 
+            function () {
+                SettingsManager.reset();
+                Logger.log('Settings reset to defaults');
+                window.location.reload();
+            }
+        );
+    }
+
+    /**
+     * Update database information display
+     */
+    const updateDbInfo = async () => {
+        const dbMgr = appMgr.getDatabase();
+        if (dbMgr) {
+            try {
+                const count = await dbMgr.getCount();
+                const range = await dbMgr.getDataRange();
+                
+                let infoText = `${count.toLocaleString()} measurements stored`;
+                
+                if (range && range.start && range.end) {
+                    const startDate = new Date(range.start);
+                    const endDate = new Date(range.end);
+                    const days = Math.floor((range.end - range.start) / (1000 * 60 * 60 * 24));
+                    infoText += `<br>From ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()} (${days} days)`;
+                }
+                
+                const dbInfoEl = document.getElementById('db-info');
+                if (dbInfoEl) {
+                    dbInfoEl.innerHTML = infoText;
+                }
+            } catch (e) {
+                Logger.error('Error updating database info: ' + e);
+            }
+        }
+    }
+
+    /**
+     * Clear old data (30+ days) from database
+     */
+    const clearOldDataClick = () => {
+        $f7.dialog.confirm('Delete all measurements older than 30 days?', 
+            'Clear Old Data',
+            function () {
+                const dbMgr = appMgr.getDatabase();
+                if (dbMgr) {
+                    const deleted = dbMgr.deleteOlderThan(30);
+                    if (deleted) {
+                        Logger.log('Old data cleared successfully');
+                        $f7.toast.create({
+                            text: 'Old data cleared successfully',
+                            closeTimeout: 2000,
+                        }).open();
+                        updateDbInfo();
+                    } else {
+                        Logger.error('Error clearing old data');
+                        $f7.toast.create({
+                            text: 'Error clearing old data',
+                            closeTimeout: 2000,
+                        }).open();
+                    }
+                }
+            }
+        );
+    }
+    
+    /**
+     * Clear all measurements from database (irreversible!)
+     */
+    const clearAllDataClick = () => {
+        $f7.dialog.confirm('Delete ALL measurements from database? This cannot be undone!', 
+            'Clear All Data',
+            function () {
+                const dbMgr = appMgr.getDatabase();
+                if (dbMgr) {
+                    const cleared = dbMgr.clearAll();
+                    if (cleared) {
+                        Logger.log('All data cleared from database');
+                        $f7.toast.create({
+                            text: 'All data cleared successfully',
+                            closeTimeout: 2000,
+                        }).open();
+                        updateDbInfo();
+                    } else {
+                        Logger.error('Error clearing all data');
+                        $f7.toast.create({
+                            text: 'Error clearing data',
+                            closeTimeout: 2000,
+                        }).open();
+                    }
+                }
+            }
+        );
+    }
+
+    $onMounted(() => {
+        Logger.log("Settings page mounted");
+
+        initializeSettings();
+        
+        // Initialize and set up the rest of the page
+        // Update database info
+        setTimeout(async () => {
+            updateDbInfo();
+        }, 500);
+
+        let sortPopup = $f7.popup.create({
         el: '.sort-popup',
         swipeToClose: true,
         push: true,
         on: {
-          close: function (){
-            let sortedMeasurements = Array()
-            document.querySelector('#MeasurementsSortList ul').childNodes.forEach(element => {
-              for (const mLine of window.settings.measurements ){
-                if (mLine.key === element.querySelector('input').id ) {
-                  sortedMeasurements.push({key: mLine.key,
-                    checked: element.querySelector('input').checked,
-                    title: mLine.title,
-                    idx: mLine.idx,
-                    val: mLine.val})
-                  break
-                }
-              }
-            }); //forach
-            settingsVals.measurements = sortedMeasurements
-            $update()
-          } //close
+            close: function (){
+                let sortedMeasurements = Array()
+                document.querySelector('#MeasurementsSortList ul').childNodes.forEach(element => {
+                    for (const mLine of window.settings.measurements ){
+                        if (mLine.key === element.querySelector('input').id ) {
+                            sortedMeasurements.push({key: mLine.key,
+                                checked: element.querySelector('input').checked,
+                                title: mLine.title,
+                                idx: mLine.idx,
+                                val: mLine.val})
+                            break
+                        }
+                    }
+                }); //forach
+                settingsVals.measurements = sortedMeasurements
+                $update()
+            } //close
         }
-      });
+    });
 
-      let rangeSheet = $f7.sheet.create({
+    let rangeSheet = $f7.sheet.create({
         el: '.points-sheet',
         swipeToClose: true,
         push: true,
         on: {
-          close: function (){
-            $update()
-          }
+            close: function (){
+                $update()
+            }
         }
-      });
+    });
 
-      let rangeSLider = $f7.range.create({
+    let rangeSLider = $f7.range.create({
         el: '.range-slider-points',
         on: {
-          changed: function(evt, value){
-            window.settings.chart.points=value;
-            $update();
-          }
-        }
-      });
-
-      // After the page is created/mounted:      
-        (function () {
-            const currentTheme = SettingsManager.get("theme");
-            console.log('Current theme from settings:', currentTheme);
-            const selectElement = document.querySelector('select[name="themeChooser"]');
-            if (selectElement) {
-              selectElement.value = currentTheme;
-              // Update Framework7 smart select if needed
-              const smartSelect = $f7.smartSelect.get(selectElement.closest('.smart-select'));
-              if (smartSelect) {
-                smartSelect.setValue(currentTheme);
-              }
+            changed: function(evt, value){
+                window.settings.chart.points=value;
+                $update();
             }
-        })();
+        }
+    });
 
-    })
+    // After the page is created/mounted:      
+    (function () {
+        const currentTheme = SettingsManager.get("theme");
+        Logger.log('Current theme from settings: ' + currentTheme);
+        const selectElement = document.querySelector('select[name="themeChooser"]');
+        if (selectElement) {
+            selectElement.value = currentTheme;
+            // Update Framework7 smart select if needed
+            const smartSelect = $f7.smartSelect.get(selectElement.closest('.smart-select'));
+            if (smartSelect) {
+                smartSelect.setValue(currentTheme);
+            }
+        }
+    })();
+
+    }) // END $onMounted
 
     $onBeforeUnmount(()=>{
       window.settings = settingsVals
       $f7.emit('SettingsChanged')
+      Logger.log("Settings page before unmount - settings saved and event emitted");
     })
 
 

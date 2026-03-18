@@ -36,7 +36,15 @@
 
 
 <script>
-export default (props, { $f7 }) => {
+export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
+
+    $onMounted(() => {
+        Logger.log("About page mounted");
+    });
+
+    $onBeforeUnmount(() => {
+        Logger.log("About page before unmount");
+    });
 
     // const helloWorld = () => {
     //     $f7.dialog.alert('Hello World!', 'My title');

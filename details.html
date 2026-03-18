@@ -15,7 +15,7 @@
         </div>
     </div>
     <div class="page-content margin">
-        Device Type Detected: ${BLEParser.getDeviceTypeDescription()}
+        Device Type Detected: ${AppManager.getInstance().parser.getDeviceTypeDescription()}
 		<div class="data-table">
             <table>
                 <thead><tr>
@@ -63,23 +63,46 @@
 
 export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount }) => {
 
+    const appMgr = AppManager.getInstance();
+    const $$ = Dom7;
+
     $onMounted(() => {
+        Logger.log("Details page mounted");
+        const parser = AppManager.getInstance().parser;
+        Logger.log("Device type detected: " + parser.getDeviceTypeDescription())
         
-        console.log("BLEParser.getDeviceTypeDescription", BLEParser.getDeviceTypeDescription())
-        
-        if(stateBleConnected)
+        // Enable reset button only when connected
+        if (appMgr.isConnected) {
             $$("#btnReset").removeClass("disabled")
-        else
+        } else {
             $$("#btnReset").addClass("disabled")
+        }
         
+        /**
+         * Listen for BLE data updates and update measurement table
+         */
         F7Evt.on("EvtBleDataAvailable", function(page) {
             Object.entries(page).forEach(entry => {
                 const [key, value] = entry;
                 if(document.querySelector('#Measurement-'+ key +'>td:nth-child(3)'))
-                    document.querySelector('#Measurement-'+ key +'>td:nth-child(3)').innerText = value
+                    document.querySelector('#Measurement-'+ key +'>td:nth-child(3)').innerText = DataProcessor.round(value, 2)
             });
         })
         
+        /**
+         * Listen for connection events to enable/disable reset button
+         */
+        F7Evt.on("EvtEnableAllRemoteControlButtons", function() {
+            $$("#btnReset").removeClass("disabled")
+        })
+        
+        F7Evt.on("EvtDisableAllRemoteControlButtons", function() {
+            $$("#btnReset").addClass("disabled")
+        })
+        
+        /**
+         * Handle reset button - show action menu
+         */
         $$('#btnReset').on('click', () => {
             $f7.actions.create({ buttons: [
                 [// First Group
@@ -112,6 +135,10 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount }) => {
         })
         
     })  //END $onMounted
+
+        $onBeforeUnmount(() => {
+            Logger.log("Details page before unmount");
+        });
 
     
     return $render;

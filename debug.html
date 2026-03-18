@@ -70,7 +70,7 @@
 </template>
 
 <script>
-export default (props, { $f7, $on, $onMounted }) => {
+export default (props, { $f7, $on, $onMounted, $onBeforeUnmount }) => {
 
     const LEVEL_COLORS = {
         INFO:    "blue",
@@ -137,14 +137,15 @@ export default (props, { $f7, $on, $onMounted }) => {
                       "_" + pad(d.getHours()) + pad(d.getMinutes());
         const filename = "powermon-log-" + stamp + ".txt";
 
-        // DroidScript: write to public Downloads folder
-        if (typeof app !== "undefined" && typeof app.CreateFile === "function") {
+        // DroidScript: write to public Downloads folder using app.WriteFile
+        if (typeof app !== "undefined" && typeof app.WriteFile === "function") {
             try {
                 const dir  = app.GetSpecialFolder("Downloads");
                 const path = dir + "/" + filename;
-                const f    = app.CreateFile(path, "rw");
-                text.split("\n").forEach(line => f.WriteText(line));
-                f.Close();
+                var filehandle =  app.CreateFile( path, "rw" );
+                filehandle.WriteText( text, "UTF" );
+                filehandle.Close()
+
                 Logger.info("Log exported to " + path);
                 $f7.toast.create({ text: "Saved: " + filename, closeTimeout: 2500 }).open();
                 return;
@@ -169,6 +170,7 @@ export default (props, { $f7, $on, $onMounted }) => {
     // ── Lifecycle ──────────────────────────────────────────────────────────
 
     $onMounted(() => {
+        Logger.log("Debug page mounted");
         refresh();
 
         // Severity filter
@@ -193,6 +195,10 @@ export default (props, { $f7, $on, $onMounted }) => {
             }
             doExport();
         });
+    });
+
+    $onBeforeUnmount(() => {
+        Logger.log("Debug page before unmount");
     });
 
     return $render;
