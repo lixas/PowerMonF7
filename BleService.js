@@ -13,8 +13,8 @@
  * - Uses DataProcessor for power calculations
  * - Communicates with main app via JSON messages
  * 
- * @requires BLEManager.js
- * @requires DatabaseManager.js
+ * @requires managers/BLE.js
+ * @requires managers/Database.js
  * @requires DataProcessor.js
  * @requires js/parser.js (ProtocolParser class)
  */
@@ -25,8 +25,8 @@
 
 // Load required modules before service starts
 app.LoadScript("js/parser.js");
-app.LoadScript("BLEManager.js");
-app.LoadScript("DatabaseManager.js");
+app.LoadScript("managers/BLE.js");
+app.LoadScript("managers/Database.js");
 app.LoadScript("DataProcessor.js");
 
 // Service-level variables
