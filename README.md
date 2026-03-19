@@ -1,4 +1,4 @@
-```
+
 # PowerMon - BLE Power Monitor
 
 A comprehensive power monitoring application built for DroidScript that connects to BLE-enabled power meters to display real-time voltage, current, power, and other electrical parameters. Features SQLite database storage for historical data analysis and background service capabilities.
