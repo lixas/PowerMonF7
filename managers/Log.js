@@ -177,7 +177,7 @@ class AppLogger {
     exportText(filterLevel) {
         const entries = this.getLogs(filterLevel);
         if (!entries.length) return "(no log entries)";
-        return entries.map(e => e.toString()).join("\n");
+        return entries.map(e => e.toString()).join("\r\n");
     }
 
     // ── Private core ──────────────────────────────────────────────────────

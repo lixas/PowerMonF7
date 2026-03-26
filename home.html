@@ -23,7 +23,7 @@
 
 <!-- main content begin -->
         <div class="block">
-            <div class="card card">
+            <div class="card">
                 <div class="card-header">
                     Power 
                     <a href="#" @click=${explainIcon.bind(null, 'W')}>
@@ -35,6 +35,7 @@
                         <span id="power-value" style="font-size: 4em;">---</span> W
                     </p>
                 </div>
+                <div class="card-footer">Calc method: <span id="power-calc-method-display">measured</span></div>
             </div>
             <div class="grid grid-cols-2">
                 <div class="card">
@@ -113,28 +114,6 @@
                 </p>`}
                 <div class="list list-outline-ios list-strong-ios list-dividers-ios">
                     <ul>
-                        <li>
-                            <div class="item-content">
-                                <div class="item-inner">
-                                    <div class="item-title">Keep screen on while connected</div>
-                                    <div class="item-after">
-                                        <label class="toggle toggle-init">
-                                            <input type="checkbox" id="keep-screen" />
-                                            <span class="toggle-icon"></span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </li>
-                        <!--<li>-->
-                        <!--    <label class="item-checkbox item-checkbox-icon-start item-content">-->
-                        <!--        <input type="checkbox" id="keep-screen-on" value="keep-screen-on" />-->
-                        <!--        <i class="icon icon-checkbox"></i>-->
-                        <!--        <div class="item-inner">-->
-                        <!--            <div class="item-title">Keep screen on while connected</div>-->
-                        <!--        </div>-->
-                        <!--    </label>-->
-                        <!--</li>-->
     					${BLEDevicesList.map((item) => $h`
     					<li>
     						<a class="item-link item-content" @click=${onDeviceSelected.bind(null, item.mac )}>
@@ -182,7 +161,7 @@
                 <div class="block-title .round panel-logo">
                     <div class="margin-left">
                         <img alt="Logo" src="Img/website_logo.png" />
-                        <p class="title">Version 1.02</p> Build 20260303
+                        <p class="title">Version 1.12</p> Build 20260326
                     </div>
                 </div>
                 <div class="list no-chevron">
@@ -292,8 +271,17 @@
 export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7router}) => {
 	let BLEDevicesList = window.settings.devices
 	let keepScreenOn = !!SettingsManager.get('screenOn')
+	let powerCalcMethod = SettingsManager.get('powerCalcMethod') || 'measured'
 	let connectPopup;
 	
+	const updatePowerCalcDisplay = () => {
+		const methodDisplay = document.getElementById('power-calc-method-display');
+		if (methodDisplay) {
+			methodDisplay.textContent = powerCalcMethod;
+		}
+        $update();
+	}
+
 	const defaultConnectionNote = () => {
 		if(document.querySelector('input#default-connection-checkbox')) {
 			if (document.querySelector('input#default-connection-checkbox').checked)
@@ -305,6 +293,13 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
 	}
 	
 	const onDeviceSelected = (adr) => {
+        Logger.log("Stopping BLE scanning");
+        const appMgr = AppManager.getInstance();
+        const bleMgr = appMgr.bleManager;
+            // if (!appMgr.isConnected) {
+        bleMgr.ble.StopScan();
+            // }
+        
 		connectPopup.close();
 		onBleDeviceSelected(adr, keepScreenOn)
 	}
@@ -367,13 +362,6 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
                 sendUartCommand(this.id)
             })
         });
-
-        // Setup screen lock checkbox
-        $$('#keep-screen').prop('checked', keepScreenOn);
-        $$('#keep-screen').on('change', function(){
-            keepScreenOn = this.checked
-            SettingsManager.set('screenOn', keepScreenOn)
-        })
         
         // Setup menu links
         $$('#about-me').on('click', () => {
@@ -421,6 +409,17 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
         })
         
         $$('#disconnect-button').css('display', 'none');
+        
+        // Initialize power calc method display
+        Logger.log("Initializing power calculation method display: " + powerCalcMethod);
+        updatePowerCalcDisplay();
+        
+        // Listen for settings changes
+        F7Evt.on('SettingsChanged', () => {
+            powerCalcMethod = SettingsManager.get('powerCalcMethod') || 'measured';
+            updatePowerCalcDisplay();
+            Logger.log('Power calculation method updated in UI: ' + powerCalcMethod);
+        });
 
         var panel = $f7.panel.create({
             el: '.panel-left',
@@ -497,12 +496,9 @@ export default (props, { $f7, $on, $onMounted, $update, $onBeforeUnmount, $f7rou
                     Logger.log("Stopping BLE scanning");
                     const appMgr = AppManager.getInstance();
                     const bleMgr = appMgr.bleManager;
-                    // Delay stopping scan to avoid interrupting connection
-                    // setTimeout(() => {
                         if (!appMgr.isConnected) {
                             bleMgr.ble.StopScan();
                         }
-                    // }, 500);
                 },
             }
         });

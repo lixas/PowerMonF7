@@ -514,7 +514,7 @@ export default (props, { $f7, $onMounted, $update, $onBeforeUnmount }) => {
 
     $onBeforeUnmount(()=>{
       window.settings = settingsVals
-      $f7.emit('SettingsChanged')
+      F7Evt.emit('SettingsChanged')
       Logger.log("Settings page before unmount - settings saved and event emitted");
     })
 

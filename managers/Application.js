@@ -60,6 +60,14 @@ class AppManager {
 
         /** @type {Object} Store device list */
         this.devices = [];
+
+        /** @type {Object} Cached settings - updated when settings change to avoid querying each time */
+        this.currentSettings = {
+            powerCalcMethod: 'measured',
+            screenOn: 0,
+            theme: 'auto',
+            chartDuration: 300
+        };
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -100,6 +108,17 @@ class AppManager {
 
             // Load settings and apply theme
             this.applyTheme(SettingsManager.get("theme"));
+
+            // Initialize settings cache
+            this.updateSettingsCache();
+
+            // Listen for settings changes from other components
+            if (window.F7Evt) {
+                window.F7Evt.on('SettingsChanged', () => {
+                    this.updateSettingsCache();
+                    Logger.log("Settings cache updated after SettingsChanged event");
+                });
+            }
 
             // Set up global handlers
             this.setupGlobalHandlers();
@@ -323,6 +342,39 @@ class AppManager {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // SETTINGS CACHE MANAGEMENT
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Update cached settings from SettingsManager
+     * Called during initialization and when SettingsChanged event fires
+     * Avoids querying SettingsManager on every data packet
+     * @private
+     */
+    updateSettingsCache() {
+        try {
+            this.currentSettings = {
+                powerCalcMethod: SettingsManager.get('powerCalcMethod') || 'measured',
+                screenOn: SettingsManager.get('screenOn') || 0,
+                theme: SettingsManager.get('theme') || 'auto',
+                chartDuration: SettingsManager.get('chart').duration || 300
+            };
+            Logger.log("Settings cache updated: method=" + this.currentSettings.powerCalcMethod);
+        } catch (e) {
+            Logger.error("Settings cache update error: " + e);
+        }
+    }
+
+    /**
+     * Get cached setting value
+     * @param {String} key Setting key (e.g., 'powerCalcMethod', 'screenOn')
+     * @returns {*} Setting value or null if not found
+     */
+    getCachedSetting(key) {
+        return this.currentSettings[key] || null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // BLE EVENT HANDLERS
     // ─────────────────────────────────────────────────────────────────────
 
@@ -341,10 +393,10 @@ class AppManager {
                 return;
             }
 
-            // Apply power calculation method
+            // Apply power calculation method using cached settings
             parsed.Pwr = DataProcessor.computePower(
                 parsed,
-                SettingsManager.get('powerCalcMethod') || 'measured'
+                this.currentSettings.powerCalcMethod
             );
 
             // Validate data
